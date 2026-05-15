@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoEsforço — Unidades de Trabalho</title>
+  <style>
+/* ── Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d1b2a;
+  --bg2:     #111d35;
+  --bg3:     #0a1628;
+  --border:  #1a3358;
+  --text:    #cfd8dc;
+  --muted:   #546e7a;
+  --accent:  #4fc3f7;
+  --accent2: #0288d1;
+  --green:   #43a047;
+  --red:     #e53935;
+  --font:    'Segoe UI', system-ui, sans-serif;
+}
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+button { cursor: pointer; font-family: var(--font); }
+input, select { font-family: var(--font); }
+a { color: inherit; text-decoration: none; }
+
+/* ── Header ── */
+#uts-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+  height: 48px;
+  min-height: 48px;
+  background: linear-gradient(160deg, #0b1e38 0%, #0a2e52 100%);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 20;
+}
+.h-logo {
+  display: flex; align-items: center; gap: 9px;
+}
+.h-logo-mark {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #4fc3f7, #0288d1);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 900; color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(79,195,247,.3);
+}
+.h-title      { font-size: 15px; font-weight: 700; color: #fff; }
+.h-logo-img   { height: 32px; width: auto; object-fit: contain; flex-shrink: 0; }
+.h-logo-fallback { display: flex; align-items: center; }
+.h-sep    { flex: 1; }
+#uts-header h1 {
+  font-size: 16px; font-weight: 600; color: var(--accent);
+  letter-spacing: -.2px;
+}
+.h-back {
+  padding: 5px 12px;
+  background: rgba(79,195,247,.1);
+  border: 1px solid rgba(79,195,247,.25);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.h-back:hover { background: rgba(79,195,247,.18); }
+
+/* ── Filter bar ── */
+#uts-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.f-search-wrap {
+  position: relative;
+  flex: 0 0 200px;
+}
+.f-search-wrap::before {
+  content: '⌕';
+  position: absolute; left: 8px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted); font-size: 15px; pointer-events: none;
+}
+#f-search {
+  width: 100%;
+  padding: 6px 8px 6px 26px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+#f-search:focus { border-color: var(--accent); }
+.f-sel {
+  padding: 6px 24px 6px 9px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23546e7a'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  cursor: pointer;
+  transition: border-color .15s;
+  white-space: nowrap;
+}
+.f-sel:focus { border-color: var(--accent); }
+.f-sel option { background: #0d1b2a; }
+#btn-limpar {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  transition: all .15s;
+  white-space: nowrap;
+}
+#btn-limpar:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Stats bar ── */
+#uts-stats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 20px;
+  height: 38px;
+  min-height: 38px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.stat-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 14px 0 0;
+  margin-right: 14px;
+  border-right: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.stat-item:last-of-type { border-right: none; }
+.stat-item strong { color: var(--text); font-weight: 700; }
+.stat-sep { flex: 1; }
+#st-hist {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 30px;
+  margin-left: 8px;
+}
+.hist-bar {
+  width: 12px;
+  border-radius: 2px 2px 0 0;
+  opacity: .85;
+  transition: opacity .15s;
+}
+.hist-bar:hover { opacity: 1; }
+.hist-label-l, .hist-label-r {
+  position: absolute;
+  bottom: -2px;
+  font-size: 9px;
+  color: var(--muted);
+}
+.hist-label-l { left: 0; }
+.hist-label-r { right: 0; }
+
+/* ── Barra de pendentes ── */
+#pending-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 20px;
+  background: rgba(79,195,247,.07);
+  border-bottom: 1px solid rgba(79,195,247,.2);
+  flex-shrink: 0;
+}
+#pending-bar.hidden { display: none; }
+#pending-count {
+  font-size: 12px; color: var(--accent);
+  font-weight: 600;
+}
+#pending-count::before { content: '● '; }
+.btn-save {
+  padding: 5px 14px;
+  background: var(--accent2);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background .15s;
+}
+.btn-save:hover  { background: #0277bd; }
+.btn-save:disabled { opacity: .5; cursor: default; }
+.btn-discard {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  transition: all .15s;
+}
+.btn-discard:hover { border-color: #ef5350; color: #ef5350; }
+
+/* ── Loading ── */
+#uts-loading {
+  display: flex; align-items: center; justify-content: center;
+  flex: 1;
+  font-size: 14px; color: var(--muted);
+  gap: 10px;
+}
+#uts-loading::before {
+  content: '';
+  width: 18px; height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Wrapper da tabela ── */
+#uts-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  min-height: 0;
+}
+#uts-table-wrap.hidden { display: none; }
+#uts-loading.hidden    { display: none; }
+
+/* scrollbar */
+#uts-table-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
+#uts-table-wrap::-webkit-scrollbar-track { background: var(--bg3); }
+#uts-table-wrap::-webkit-scrollbar-thumb { background: #1a3358; border-radius: 3px; }
+#uts-table-wrap::-webkit-scrollbar-thumb:hover { background: #264466; }
+
+/* ── Tabela ── */
+#uts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+#uts-table thead {
+  position: sticky; top: 0; z-index: 10;
+}
+#uts-table thead tr {
+  background: #0c2040;
+  border-bottom: 2px solid var(--border);
+}
+#uts-table thead th {
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  user-select: none;
+  white-space: nowrap;
+  border-right: 1px solid var(--border);
+}
+#uts-table thead th:last-child { border-right: none; }
+#uts-table thead th[data-col] { cursor: pointer; }
+#uts-table thead th[data-col]:hover { color: var(--accent); }
+
+/* Sort indicators */
+#uts-table thead th[data-col]::after {
+  content: ' ⇅';
+  opacity: .3;
+  font-size: 10px;
+}
+#uts-table thead th.sort-asc::after  { content: ' ↑'; opacity: 1; color: var(--accent); }
+#uts-table thead th.sort-desc::after { content: ' ↓'; opacity: 1; color: var(--accent); }
+
+/* Linhas */
+#uts-table tbody tr {
+  border-bottom: 1px solid rgba(26,51,88,.6);
+  transition: background .1s;
+}
+#uts-table tbody tr:hover { background: rgba(79,195,247,.04); }
+#uts-table tbody tr.row-dirty { background: rgba(79,195,247,.07); }
+#uts-table tbody tr.row-dirty:hover { background: rgba(79,195,247,.11); }
+
+#uts-table tbody td {
+  padding: 8px 12px;
+  vertical-align: middle;
+  border-right: 1px solid rgba(26,51,88,.4);
+}
+#uts-table tbody td:last-child { border-right: none; }
+
+/* Colunas */
+.col-idx   { width: 44px; text-align: right; color: var(--muted); font-size: 11px; }
+.col-nome  { min-width: 80px; max-width: 120px; }
+.col-lote  { min-width: 120px; max-width: 180px; }
+.col-lp    { min-width: 80px; max-width: 120px; font-size: 11px; color: #90a4ae; }
+.col-sf    { min-width: 140px; max-width: 200px; }
+.col-esc   { width: 78px; text-align: center; color: #90a4ae; font-size: 11px; }
+.col-disp  { width: 80px; text-align: center; }
+.col-prio  { width: 78px; text-align: center; }
+.col-dif   { width: 100px; text-align: center; }
+
+.ut-nome { font-weight: 600; color: var(--text); }
+.truncate {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dirty-dot {
+  font-size: 9px; color: var(--accent); margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.badge-green { background: rgba(67,160,71,.18); color: #81c784; border: 1px solid rgba(67,160,71,.3); }
+.badge-gray  { background: rgba(84,110,122,.18); color: var(--muted); border: 1px solid rgba(84,110,122,.3); }
+
+/* Dificuldade badge */
+.dif-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  min-width: 34px;
+  text-align: center;
+}
+.dif-zero {
+  background: rgba(84,110,122,.2);
+  color: var(--muted);
+  border: 1px solid rgba(84,110,122,.3);
+}
+
+/* Prioridade */
+.prio-val { font-weight: 600; color: #90caf9; }
+
+/* Células editáveis */
+.editable {
+  cursor: pointer;
+  position: relative;
+}
+.editable .edit-icon {
+  opacity: 0;
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 5px;
+  vertical-align: middle;
+  transition: opacity .15s;
+}
+.editable:hover .edit-icon    { opacity: 1; }
+.editable:hover .dif-badge,
+.editable:hover .prio-val     { opacity: .8; }
+.cell-inp {
+  width: 68px;
+  padding: 3px 6px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+
+/* ── Empty state ── */
+.empty-msg {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 13px;
+}
+
+/* ── Footer ── */
+#uts-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 44px;
+  min-height: 44px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 12px;
+}
+#uts-paginacao {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pag-info {
+  font-size: 12px; color: var(--muted);
+  padding-right: 8px;
+  margin-right: 4px;
+  border-right: 1px solid var(--border);
+}
+.pag-btn {
+  min-width: 30px; height: 28px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  transition: all .15s;
+}
+.pag-btn:hover:not(:disabled):not(.pag-active) {
+  background: rgba(79,195,247,.1);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pag-btn.pag-active {
+  background: var(--accent2);
+  border-color: var(--accent2);
+  color: #fff;
+  font-weight: 700;
+}
+.pag-btn:disabled { opacity: .3; cursor: default; }
+.pag-nav { font-size: 14px; min-width: 28px; }
+
+.footer-actions {
+  display: flex; gap: 8px; align-items: center;
+}
+.btn-csv {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  transition: all .15s;
+}
+.btn-csv:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  bottom: 60px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity .25s, transform .25s;
+  pointer-events: none;
+  z-index: 9999;
+  white-space: nowrap;
+}
+.toast.toast-show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast-success { background: #1b5e20; color: #a5d6a7; border: 1px solid #2e7d32; }
+.toast-error   { background: #7f0000; color: #ef9a9a; border: 1px solid #c62828; }
+  </style>
+</head>
+<body>
+
+<!-- ══ Header ══════════════════════════════════════════════════════ -->
+<header id="uts-header">
+  <div class="h-logo">
+    <img src="logo.png" alt="GeoEsforço" class="h-logo-img"
+         onerror="this.style.display='none';document.querySelector('.h-logo-fallback').style.display='flex'">
+    <div class="h-logo-fallback" style="display:none">
+      <div class="h-logo-mark">GE</div>
+    </div>
+    <div><div class="h-title">GeoEsforço</div></div>
+  </div>
+  <h1>Unidades de Trabalho</h1>
+  <div class="h-sep"></div>
+  <a href="/" class="h-back">← Calculadora</a>
+</header>
+
+<!-- ══ Filtros ══════════════════════════════════════════════════════ -->
+<div id="uts-filters">
+  <div class="f-search-wrap">
+    <input type="search" id="f-search" placeholder="Buscar UT, lote…" autocomplete="off">
+  </div>
+  <select id="f-projeto" class="f-sel">
+    <option value="">Todos os projetos</option>
+  </select>
+  <select id="f-lp" class="f-sel">
+    <option value="">Todas as LPs</option>
+  </select>
+  <select id="f-lote" class="f-sel">
+    <option value="">Todos os lotes</option>
+  </select>
+  <select id="f-subfase" class="f-sel">
+    <option value="">Todas as subfases</option>
+  </select>
+  <select id="f-disponivel" class="f-sel">
+    <option value="">Disponibilidade</option>
+    <option value="true">Disponível</option>
+    <option value="false">Indisponível</option>
+  </select>
+  <select id="f-com-dif" class="f-sel">
+    <option value="">Toda dificuldade</option>
+    <option value="sim">Com dificuldade</option>
+    <option value="nao">Sem dificuldade (= 0)</option>
+  </select>
+  <button id="btn-limpar">✕ Limpar filtros</button>
+</div>
+
+<!-- ══ Stats ════════════════════════════════════════════════════════ -->
+<div id="uts-stats">
+  <div class="stat-item">
+    <strong id="st-total">–</strong> UTs
+  </div>
+  <div class="stat-item">
+    <strong id="st-disp">–</strong> disponíveis
+  </div>
+  <div class="stat-item">
+    <strong id="st-com-dif">–</strong> com dificuldade
+  </div>
+  <div class="stat-item">
+    Média dif: <strong id="st-dif-media">–</strong>
+    <span id="st-dif-range" style="font-size:10px;color:#455a64;margin-left:4px"></span>
+  </div>
+  <div class="stat-item" style="border-right:none">
+    <div id="st-hist"></div>
+  </div>
+  <div class="stat-sep"></div>
+</div>
+
+<!-- ══ Barra de pendentes ═══════════════════════════════════════════ -->
+<div id="pending-bar" class="hidden">
+  <span id="pending-count"></span>
+  <button class="btn-save" id="btn-salvar">💾 Salvar</button>
+  <button class="btn-discard" id="btn-descartar">Descartar</button>
+</div>
+
+<!-- ══ Loading ══════════════════════════════════════════════════════ -->
+<div id="uts-loading">Carregando unidades de trabalho…</div>
+
+<!-- ══ Tabela ═══════════════════════════════════════════════════════ -->
+<div id="uts-table-wrap" class="hidden">
+  <table id="uts-table">
+    <thead>
+      <tr>
+        <th class="col-idx">#</th>
+        <th data-col="nome">Nome</th>
+        <th data-col="lote">Lote</th>
+        <th data-col="linha_producao_id">LP</th>
+        <th data-col="subfase_nome">Subfase</th>
+        <th data-col="denominador_escala">Escala</th>
+        <th data-col="disponivel">Disp.</th>
+        <th data-col="prioridade">Prioridade</th>
+        <th data-col="dificuldade">Dificuldade</th>
+      </tr>
+    </thead>
+    <tbody id="uts-tbody">
+      <tr><td colspan="9" class="empty-msg">Carregando…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══ Footer ═══════════════════════════════════════════════════════ -->
+<footer id="uts-footer">
+  <div id="uts-paginacao"></div>
+  <div class="footer-actions">
+    <button class="btn-csv" id="btn-csv">⬇ Exportar CSV</button>
+  </div>
+</footer>
+
+<!-- ══ Toast ════════════════════════════════════════════════════════ -->
+<div id="toast" class="toast"></div>
+
+<script src="unidades.js"></script>
+</body>
+</html>

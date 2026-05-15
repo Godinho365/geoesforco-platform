@@ -1,0 +1,16 @@
+{
+  "_nota": "Mapeamento de Linhas de Produção (por nome SAP) → arquivo de mapeamento de camadas. Padrão usado quando LP não reconhecida: 'default'.",
+  "default": "mapeamento_topo",
+  "linhas": [
+    {
+      "_descricao": "Carta Ortoimagem / EDGV 3.0 Orto (ex: cdgv_edgv_3orto25_v1.0.2)",
+      "nome_contains": ["orto", "ortofoto", "ortoimagem", "cdgv orto", "3orto"],
+      "mapeamento": "mapeamento_orto"
+    },
+    {
+      "_descricao": "Carta Topográfica / EDGV 3.0 Topo 1.4",
+      "nome_contains": ["topo", "topografi", "cdgv topo", "3topo"],
+      "mapeamento": "mapeamento_topo"
+    }
+  ]
+}

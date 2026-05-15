@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoEsforço — Notas de Atividades</title>
+  <style>
+/* ── Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d1b2a;
+  --bg2:     #111d35;
+  --bg3:     #0a1628;
+  --border:  #1a3358;
+  --text:    #cfd8dc;
+  --muted:   #546e7a;
+  --accent:  #4fc3f7;
+  --accent2: #0288d1;
+  --font:    'Segoe UI', system-ui, sans-serif;
+  /* Notas */
+  --n10: #43a047; --n9: #66bb6a;
+  --n8:  #26c6da; --n7: #42a5f5;
+  --n6:  #ffa726; --n5: #ff7043;
+  --n4:  #ef5350; --nlow: #b71c1c;
+}
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+button { cursor: pointer; font-family: var(--font); }
+input, select { font-family: var(--font); }
+a { color: inherit; text-decoration: none; }
+.hidden { display: none !important; }
+
+/* ── Header ── */
+#header {
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 20px; height: 48px; min-height: 48px;
+  background: linear-gradient(160deg, #0b1e38 0%, #0a2e52 100%);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; z-index: 20;
+}
+.h-logo { display: flex; align-items: center; gap: 9px; }
+.h-logo-img { height: 32px; width: auto; object-fit: contain; flex-shrink: 0; }
+.h-logo-fallback { display: flex; align-items: center; }
+.h-logo-mark {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #4fc3f7, #0288d1);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 900; color: #fff; flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(79,195,247,.3);
+}
+.h-title { font-size: 15px; font-weight: 700; color: #fff; }
+.h-sep  { flex: 1; }
+#header h1 { font-size: 16px; font-weight: 600; color: var(--accent); letter-spacing: -.2px; }
+.h-back {
+  padding: 5px 12px;
+  background: rgba(79,195,247,.1); border: 1px solid rgba(79,195,247,.25);
+  border-radius: 6px; color: var(--accent); font-size: 12px; font-weight: 600;
+  transition: background .15s; white-space: nowrap;
+}
+.h-back:hover { background: rgba(79,195,247,.18); }
+.h-nav-link {
+  padding: 5px 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); font-size: 12px; transition: all .15s; white-space: nowrap;
+}
+.h-nav-link:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Filtros ── */
+#filters {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 20px; background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; flex-wrap: wrap;
+}
+.f-search-wrap { position: relative; flex: 0 0 180px; }
+.f-search-wrap::before {
+  content: '⌕'; position: absolute; left: 8px; top: 50%;
+  transform: translateY(-50%); color: var(--muted); font-size: 15px; pointer-events: none;
+}
+#f-search {
+  width: 100%; padding: 6px 8px 6px 26px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); font-size: 12px; outline: none;
+  transition: border-color .15s;
+}
+#f-search:focus { border-color: var(--accent); }
+.f-sel {
+  padding: 6px 24px 6px 9px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 12px; outline: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23546e7a'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+  cursor: pointer; transition: border-color .15s; white-space: nowrap;
+}
+.f-sel:focus { border-color: var(--accent); }
+.f-sel option { background: #0d1b2a; }
+.f-date {
+  padding: 6px 8px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 12px; outline: none;
+  transition: border-color .15s; width: 130px;
+}
+.f-date:focus { border-color: var(--accent); }
+.f-date::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+.f-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.f-range-wrap { display: flex; align-items: center; gap: 4px; }
+.f-nota-sel {
+  padding: 6px 8px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 12px; outline: none; appearance: none;
+  cursor: pointer; width: 52px; text-align: center;
+  transition: border-color .15s;
+}
+.f-nota-sel:focus { border-color: var(--accent); }
+.f-nota-sel option { background: #0d1b2a; }
+.f-sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+.f-actions { display: flex; gap: 6px; margin-left: auto; }
+#btn-buscar {
+  padding: 6px 14px; background: var(--accent2); border: none;
+  border-radius: 6px; color: #fff; font-size: 12px; font-weight: 600;
+  transition: background .15s;
+}
+#btn-buscar:hover { background: #0277bd; }
+#btn-limpar {
+  padding: 6px 12px; background: transparent;
+  border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); font-size: 11px; transition: all .15s;
+}
+#btn-limpar:hover { border-color: var(--accent); color: var(--accent); }
+#btn-csv {
+  padding: 6px 12px; background: rgba(66,187,106,.1);
+  border: 1px solid rgba(66,187,106,.3); border-radius: 6px;
+  color: #66bb6a; font-size: 11px; font-weight: 600; transition: all .15s;
+}
+#btn-csv:hover { background: rgba(66,187,106,.18); }
+
+/* ── Stats ── */
+#stats-bar {
+  display: flex; align-items: center; gap: 0;
+  padding: 0 20px; height: 44px; min-height: 44px;
+  background: var(--bg3); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; overflow-x: auto;
+}
+.stat-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 16px 0 0; margin-right: 16px;
+  border-right: 1px solid var(--border);
+  font-size: 12px; color: var(--muted); white-space: nowrap;
+}
+.stat-item:last-of-type { border-right: none; }
+.stat-item strong { color: var(--text); font-weight: 700; font-size: 14px; }
+.stat-sep { flex: 1; }
+
+/* Distribuição de notas */
+#nota-dist {
+  display: flex; align-items: flex-end; gap: 3px;
+  height: 30px; margin-left: 4px;
+}
+.dist-col { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.dist-bar {
+  width: 18px; border-radius: 3px 3px 0 0; min-height: 2px;
+  transition: height .4s cubic-bezier(.4,0,.2,1);
+  cursor: default; position: relative;
+}
+.dist-bar:hover::after {
+  content: attr(data-tip);
+  position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+  background: #1a3358; color: var(--text); font-size: 10px;
+  padding: 3px 6px; border-radius: 4px; white-space: nowrap;
+  border: 1px solid var(--border); pointer-events: none; z-index: 99;
+}
+.dist-lbl { font-size: 9px; color: var(--muted); }
+
+/* ── Loading ── */
+#loading {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 60px 20px;
+  color: var(--muted); font-size: 13px;
+}
+#loading.hidden { display: none; }
+.spin {
+  width: 18px; height: 18px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Empty ── */
+#empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 80px 20px; color: var(--muted); font-size: 13px;
+}
+#empty.hidden { display: none; }
+#empty svg { opacity: .25; }
+
+/* ── Tabela ── */
+#table-wrap {
+  flex: 1; overflow-y: auto; overflow-x: auto;
+  padding: 0 0 20px 0;
+}
+#table-wrap.hidden { display: none; }
+#notas-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+#notas-table thead th {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--bg2); border-bottom: 2px solid var(--border);
+  padding: 9px 12px; text-align: left;
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  letter-spacing: .5px; text-transform: uppercase;
+  white-space: nowrap; cursor: pointer; user-select: none;
+}
+#notas-table thead th:hover { color: var(--accent); }
+#notas-table thead th.sort-asc::after  { content: ' ↑'; color: var(--accent); }
+#notas-table thead th.sort-desc::after { content: ' ↓'; color: var(--accent); }
+#notas-table tbody tr {
+  border-bottom: 1px solid rgba(26,51,88,.5);
+  transition: background .1s;
+}
+#notas-table tbody tr:hover { background: rgba(79,195,247,.04); }
+#notas-table td {
+  padding: 8px 12px; vertical-align: middle;
+}
+.td-nota {
+  width: 52px; text-align: center;
+}
+.nota-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  font-size: 14px; font-weight: 900; color: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.35);
+}
+.nota-10 { background: var(--n10); }
+.nota-9  { background: var(--n9);  }
+.nota-8  { background: var(--n8);  }
+.nota-7  { background: var(--n7);  }
+.nota-6  { background: var(--n6);  }
+.nota-5  { background: var(--n5);  }
+.nota-4  { background: var(--n4);  }
+.nota-low{ background: var(--nlow);}
+.nota-invalida {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #37474f; border: 2px dashed #546e7a;
+  font-size: 14px; color: #546e7a;
+}
+.td-obs-raw {
+  font-size: 11px; color: #ff7043; font-style: italic;
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.td-descr { color: var(--muted); font-style: italic; max-width: 180px; }
+.td-op { font-weight: 600; color: var(--text); white-space: nowrap; max-width: 160px; }
+.td-ut { font-weight: 500; color: var(--accent); white-space: nowrap; max-width: 160px; }
+.td-lote { color: var(--muted); white-space: nowrap; }
+.td-fase { color: var(--muted); white-space: nowrap; max-width: 120px; }
+.td-sf { white-space: nowrap; max-width: 160px; }
+.td-data { color: var(--muted); white-space: nowrap; font-size: 11px; font-variant-numeric: tabular-nums; }
+.td-trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+
+/* ── Paginação ── */
+#pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; padding: 14px 20px;
+  flex-shrink: 0; background: var(--bg3); border-top: 1px solid var(--border);
+}
+#pagination.hidden { display: none; }
+.pg-info { font-size: 12px; color: var(--muted); }
+#btn-prev, #btn-next {
+  padding: 5px 14px; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 12px; transition: all .15s;
+}
+#btn-prev:hover:not(:disabled), #btn-next:hover:not(:disabled) {
+  border-color: var(--accent); color: var(--accent);
+}
+#btn-prev:disabled, #btn-next:disabled { opacity: .35; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header id="header">
+  <div class="h-logo">
+    <img src="logo.png" alt="GeoEsforço" class="h-logo-img"
+         onerror="this.style.display='none';document.querySelector('.h-logo-fallback').style.display='flex'">
+    <div class="h-logo-fallback" style="display:none">
+      <div class="h-logo-mark">GE</div>
+    </div>
+    <div class="h-title">GeoEsforço</div>
+  </div>
+
+  <h1>📊 Notas de Atividades</h1>
+
+  <div class="h-sep"></div>
+  <a href="/mi_calc.html" class="h-nav-link">🗺 MI</a>
+  <a href="/unidades.html" class="h-nav-link">⊞ UTs</a>
+  <a href="/" class="h-back">← Calculadora</a>
+</header>
+
+<!-- ── Filtros ── -->
+<div id="filters">
+  <div class="f-search-wrap">
+    <input id="f-search" type="text" placeholder="Buscar UT…">
+  </div>
+
+  <select id="f-lp" class="f-sel" title="Linha de Produção">
+    <option value="">Todas as LPs</option>
+  </select>
+
+  <select id="f-lote" class="f-sel">
+    <option value="">Todos os lotes</option>
+  </select>
+
+  <select id="f-subfase" class="f-sel">
+    <option value="">Todas as subfases</option>
+  </select>
+
+  <select id="f-operador" class="f-sel">
+    <option value="">Todos os operadores</option>
+  </select>
+
+  <div class="f-sep"></div>
+
+  <span class="f-label">Nota:</span>
+  <div class="f-range-wrap">
+    <select id="f-nota-min" class="f-nota-sel">
+      <option value="">—</option>
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+      <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+      <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+      <option value="10">10</option>
+    </select>
+    <span class="f-label">a</span>
+    <select id="f-nota-max" class="f-nota-sel">
+      <option value="">—</option>
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+      <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+      <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+      <option value="10">10</option>
+    </select>
+  </div>
+
+  <div class="f-sep"></div>
+
+  <span class="f-label">Período:</span>
+  <input id="f-data-ini" type="date" class="f-date" title="Data início">
+  <span class="f-label">→</span>
+  <input id="f-data-fim" type="date" class="f-date" title="Data fim">
+
+  <div class="f-actions">
+    <button id="btn-limpar">✕ Limpar</button>
+    <button id="btn-csv">⬇ CSV</button>
+    <button id="btn-buscar">🔍 Buscar</button>
+  </div>
+</div>
+
+<!-- ── Stats ── -->
+<div id="stats-bar">
+  <div class="stat-item">Total <strong id="st-total">—</strong></div>
+  <div class="stat-item">Média <strong id="st-media">—</strong></div>
+  <div class="stat-item">Nota ≥ 8 <strong id="st-boas">—</strong></div>
+  <div class="stat-item">Nota ≤ 5 <strong id="st-ruins">—</strong></div>
+  <div class="stat-item" id="st-invalidas-wrap" style="color:#ff7043">⚠ Inválidas <strong id="st-invalidas">—</strong></div>
+  <div class="stat-sep"></div>
+  <div id="nota-dist"></div>
+</div>
+
+<!-- ── Conteúdo principal ── -->
+<div id="loading">
+  <div class="spin"></div>
+  Carregando notas…
+</div>
+
+<div id="empty" class="hidden">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+  <span id="empty-msg">Nenhuma nota encontrada para os filtros selecionados.</span>
+</div>
+
+<div id="table-wrap" class="hidden">
+  <table id="notas-table">
+    <thead>
+      <tr>
+        <th data-col="nota">Nota</th>
+        <th data-col="nota_descricao">Descrição</th>
+        <th data-col="operador_nome">Operador <span style="font-weight:400;opacity:.6">(recebeu)</span></th>
+        <th data-col="revisor_nome">Revisor <span style="font-weight:400;opacity:.6">(deu nota)</span></th>
+        <th data-col="ut_nome">UT</th>
+        <th data-col="lote_nome">Lote</th>
+        <th data-col="subfase_nome">Subfase</th>
+        <th data-col="data_fim">Data Fim</th>
+      </tr>
+    </thead>
+    <tbody id="notas-tbody"></tbody>
+  </table>
+</div>
+
+<div id="pagination" class="hidden">
+  <button id="btn-prev" disabled>‹ Anterior</button>
+  <span class="pg-info" id="pg-info"></span>
+  <button id="btn-next">Próximo ›</button>
+</div>
+
+<script>
+'use strict';
+
+// ── Estado ────────────────────────────────────────────────────────────────
+let _allRows   = [];   // todos os dados carregados
+let _filtered  = [];   // após busca/filtro local
+let _sortCol   = 'data_fim';
+let _sortDir   = -1;   // -1 = desc, 1 = asc
+const PAGE_SIZE = 100;
+let _page = 0;
+
+// ── Refs DOM ──────────────────────────────────────────────────────────────
+const elLoading  = document.getElementById('loading');
+const elEmpty    = document.getElementById('empty');
+const elTable    = document.getElementById('table-wrap');
+const elTbody    = document.getElementById('notas-tbody');
+const elTotal      = document.getElementById('st-total');
+const elMedia      = document.getElementById('st-media');
+const elBoas       = document.getElementById('st-boas');
+const elRuins      = document.getElementById('st-ruins');
+const elInvalidas  = document.getElementById('st-invalidas');
+const elInvWrap    = document.getElementById('st-invalidas-wrap');
+const elDist     = document.getElementById('nota-dist');
+const elPag      = document.getElementById('pagination');
+const elPgInfo   = document.getElementById('pg-info');
+const btnPrev    = document.getElementById('btn-prev');
+const btnNext    = document.getElementById('btn-next');
+const fSearch    = document.getElementById('f-search');
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function setLoading(on) {
+  elLoading.classList.toggle('hidden', !on);
+  elEmpty.classList.add('hidden');
+  elTable.classList.add('hidden');
+  elPag.classList.add('hidden');
+}
+
+function notaClass(n) {
+  if (n >= 10) return 'nota-10';
+  if (n >= 9)  return 'nota-9';
+  if (n >= 8)  return 'nota-8';
+  if (n >= 7)  return 'nota-7';
+  if (n >= 6)  return 'nota-6';
+  if (n >= 5)  return 'nota-5';
+  if (n >= 4)  return 'nota-4';
+  return 'nota-low';
+}
+
+function notaColor(n) {
+  const map = { 10:'#43a047',9:'#66bb6a',8:'#26c6da',7:'#42a5f5',6:'#ffa726',5:'#ff7043',4:'#ef5350' };
+  return map[n] || '#b71c1c';
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function fmtDatetime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('pt-BR', {
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  });
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Helpers de select ─────────────────────────────────────────────────────
+function preencherSelect(sel, items, placeholderText, valorAtual = '') {
+  sel.innerHTML = `<option value="">${placeholderText}</option>`;
+  items.forEach(it => {
+    const o = document.createElement('option');
+    o.value = it.id ?? it.value; o.textContent = it.nome ?? it.text;
+    sel.appendChild(o);
+  });
+  if (valorAtual && [...sel.options].some(o => o.value === String(valorAtual)))
+    sel.value = String(valorAtual);
+}
+
+// ── Recarrega lotes + subfases + operadores com base em lp_id e/ou lote_id ──
+async function carregarDependentes(lp_id = '', lote_id = '') {
+  const qs = new URLSearchParams();
+  if (lp_id)   qs.set('lp_id',   lp_id);
+  if (lote_id) qs.set('lote_id', lote_id);
+
+  try {
+    const data = await fetch(`/api/notas/filtros?${qs}`).then(r => r.json());
+
+    const selLote = document.getElementById('f-lote');
+    const selSf   = document.getElementById('f-subfase');
+    const selOp   = document.getElementById('f-operador');
+
+    // Lotes: recarregar só quando LP mudou (para filtrar por LP)
+    if (!lote_id) {
+      preencherSelect(selLote, data.lotes || [], 'Todos os lotes', selLote.value);
+    }
+    preencherSelect(selSf,   data.subfases || [], 'Todas as subfases',  selSf.value);
+    preencherSelect(selOp,   data.usuarios || [], 'Todos os operadores', selOp.value);
+  } catch (e) { console.warn('Filtros dependentes não carregados:', e.message); }
+}
+
+// ── Carrega filtros iniciais ───────────────────────────────────────────────
+async function carregarFiltros() {
+  try {
+    const data = await fetch('/api/notas/filtros').then(r => r.json());
+
+    // LPs
+    const selLp = document.getElementById('f-lp');
+    // Abreviar nomes longos de LP para caber no select
+    function abreviarLP(nome) {
+      // "...para EDGV 3.0 Topo 1.4 v1.0.1" → "EDGV 3.0 Topo 1.4"
+      // "...para MUVD UTRD 1.2 v1.0.2"     → "MUVD UTRD 1.2"
+      const m = nome.match(/EDGV\s+[\d.]+\s+\S+(?:\s+[\d.]+)?/i)
+             || nome.match(/MUVD\s+\S+\s+[\d.]+/i);
+      return m ? m[0] : nome;
+    }
+    (data.lps || []).forEach(lp => {
+      const o = document.createElement('option');
+      o.value = lp.id; o.textContent = abreviarLP(lp.nome);
+      o.title = lp.nome; // tooltip com nome completo
+      selLp.appendChild(o);
+    });
+
+    const selLote = document.getElementById('f-lote');
+    preencherSelect(selLote, data.lotes || [], 'Todos os lotes');
+
+    const selSf = document.getElementById('f-subfase');
+    preencherSelect(selSf, data.subfases || [], 'Todas as subfases');
+
+    const selOp = document.getElementById('f-operador');
+    preencherSelect(selOp, data.usuarios || [], 'Todos os operadores');
+
+    // Quando LP muda: recarrega lotes + subfases + operadores
+    selLp.addEventListener('change', async () => {
+      await carregarDependentes(selLp.value, '');
+      document.getElementById('f-lote').value = '';
+    });
+
+    // Quando lote muda: recarrega subfases + operadores do lote
+    selLote.addEventListener('change', () =>
+      carregarDependentes(selLp.value, selLote.value)
+    );
+  } catch (e) {
+    console.warn('Filtros não carregados:', e.message);
+  }
+}
+
+// ── Busca notas na API ────────────────────────────────────────────────────
+async function buscarNotas() {
+  setLoading(true);
+  _page = 0;
+
+  const params = new URLSearchParams();
+  const lp      = document.getElementById('f-lp').value;
+  const lote    = document.getElementById('f-lote').value;
+  const subfase = document.getElementById('f-subfase').value;
+  const op      = document.getElementById('f-operador').value;
+  const nMin    = document.getElementById('f-nota-min').value;
+  const nMax    = document.getElementById('f-nota-max').value;
+  const dIni    = document.getElementById('f-data-ini').value;
+  const dFim    = document.getElementById('f-data-fim').value;
+
+  if (lp)      params.set('lp_id',     lp);
+  if (lote)    params.set('lote_id',   lote);
+  if (subfase) params.set('subfase_id', subfase);
+  if (op)      params.set('usuario_id', op);
+  if (nMin)    params.set('nota_min',   nMin);
+  if (nMax)    params.set('nota_max',   nMax);
+  if (dIni)    params.set('data_ini',   dIni);
+  if (dFim)    params.set('data_fim',   dFim);
+
+  try {
+    const data = await fetch(`/api/notas?${params}`).then(r => r.json());
+    if (data.erro) throw new Error(data.erro);
+    _allRows = data.rows || [];
+    aplicarFiltroLocal();
+  } catch (e) {
+    setLoading(false);
+    document.getElementById('empty-msg').textContent = 'Erro: ' + e.message;
+    elEmpty.classList.remove('hidden');
+  }
+}
+
+// ── Filtro local por texto (UT) ───────────────────────────────────────────
+function aplicarFiltroLocal() {
+  const q = fSearch.value.trim().toLowerCase();
+  _filtered = q
+    ? _allRows.filter(r => (r.ut_nome || '').toLowerCase().includes(q))
+    : _allRows.slice();
+
+  sortRows();
+  atualizarStats();
+  renderTabela();
+}
+
+// ── Ordenação ─────────────────────────────────────────────────────────────
+function sortRows() {
+  _filtered.sort((a, b) => {
+    let va = a[_sortCol], vb = b[_sortCol];
+    if (va == null) va = _sortDir === 1 ? '￿' : '';
+    if (vb == null) vb = _sortDir === 1 ? '￿' : '';
+    if (_sortCol === 'nota') { va = +va; vb = +vb; }
+    if (va < vb) return -_sortDir;
+    if (va > vb) return  _sortDir;
+    return 0;
+  });
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────
+function atualizarStats() {
+  const rows     = _filtered;
+  const invalidas = rows.filter(r => !r.nota_valida).length;
+  const notas    = rows.filter(r => r.nota_valida).map(r => +r.nota).filter(n => !isNaN(n) && n > 0);
+  const total    = rows.length;
+  const media    = notas.length ? (notas.reduce((a,b)=>a+b,0) / notas.length).toFixed(1) : '—';
+  const boas     = notas.filter(n => n >= 8).length;
+  const ruins    = notas.filter(n => n <= 5).length;
+
+  elTotal.textContent    = total.toLocaleString('pt-BR');
+  elMedia.textContent    = media;
+  elBoas.textContent     = boas.toLocaleString('pt-BR');
+  elRuins.textContent    = ruins.toLocaleString('pt-BR');
+  elInvalidas.textContent = invalidas.toLocaleString('pt-BR');
+  elInvWrap.style.display = invalidas > 0 ? '' : 'none';
+
+  // Distribuição 1-10
+  const dist = {};
+  for (let i = 1; i <= 10; i++) dist[i] = 0;
+  notas.forEach(n => { if (n >= 1 && n <= 10) dist[n]++; });
+  const maxDist = Math.max(...Object.values(dist), 1);
+
+  elDist.innerHTML = '';
+  for (let i = 1; i <= 10; i++) {
+    const cnt = dist[i];
+    const h   = Math.max(2, Math.round((cnt / maxDist) * 26));
+    const col = document.createElement('div');
+    col.className = 'dist-col';
+    col.innerHTML = `
+      <div class="dist-bar" style="height:${h}px;background:${notaColor(i)}"
+           data-tip="Nota ${i}: ${cnt}"></div>
+      <div class="dist-lbl">${i}</div>`;
+    elDist.appendChild(col);
+  }
+}
+
+// ── Renderiza tabela ──────────────────────────────────────────────────────
+function renderTabela() {
+  elLoading.classList.add('hidden');
+  const total = _filtered.length;
+
+  if (total === 0) {
+    elEmpty.classList.remove('hidden');
+    document.getElementById('empty-msg').textContent =
+      _allRows.length === 0
+        ? 'Nenhuma atividade com nota encontrada no banco.'
+        : 'Nenhum resultado para os filtros aplicados.';
+    elTable.classList.add('hidden');
+    elPag.classList.add('hidden');
+    return;
+  }
+
+  elEmpty.classList.add('hidden');
+  elTable.classList.remove('hidden');
+
+  const ini  = _page * PAGE_SIZE;
+  const fim  = Math.min(ini + PAGE_SIZE, total);
+  const page = _filtered.slice(ini, fim);
+
+  elTbody.innerHTML = page.map(r => {
+    const valida = r.nota_valida;
+    const n      = parseInt(r.nota) || 0;
+    const data   = fmtDate(r.data_fim);
+
+    const badgeHtml = valida
+      ? `<span class="nota-badge ${notaClass(n)}" title="${esc(r.nota_descricao)}">${n}</span>`
+      : `<span class="nota-invalida" title="Nota inválida ou ausente&#10;Valor bruto: ${esc(r.observacao_raw || '(vazio)')}">?</span>`;
+
+    const descrHtml = valida
+      ? `<span class="td-trunc" style="max-width:180px" title="${esc(r.nota_descricao)}">${esc(r.nota_descricao) || '<em style="color:var(--muted)">—</em>'}</span>`
+      : `<span class="td-obs-raw" title="Valor bruto: ${esc(r.observacao_raw || '')}">${esc(r.observacao_raw) || '<em>vazio</em>'}</span>`;
+
+    return `
+      <tr style="${valida ? '' : 'background:rgba(255,112,67,.05)'}">
+        <td class="td-nota">${badgeHtml}</td>
+        <td class="td-descr">${descrHtml}</td>
+        <td class="td-op"><span class="td-trunc" title="${esc(r.operador_nome)}">${esc(r.operador_nome) || '<em style="color:var(--muted)">—</em>'}</span></td>
+        <td class="td-op" style="color:var(--muted);font-weight:400"><span class="td-trunc" title="${esc(r.revisor_nome)}">${r.revisor_nome ? esc(r.revisor_nome) : '<em style="color:var(--muted);font-style:normal">—</em>'}</span></td>
+        <td class="td-ut"><span class="td-trunc" title="${esc(r.ut_nome)}">${esc(r.ut_nome)}</span></td>
+        <td class="td-lote"><span class="td-trunc" style="max-width:130px" title="${esc(r.lote_nome)}${r.lp_nome ? '\n' + esc(r.lp_nome) : ''}">${esc(r.lote_nome)}</span></td>
+        <td class="td-sf"><span class="td-trunc" style="max-width:180px" title="${esc(r.subfase_nome)}">${esc(r.subfase_nome)}</span></td>
+        <td class="td-data" title="${fmtDatetime(r.data_fim)}">${data}</td>
+      </tr>`;
+  }).join('');
+
+  // Paginação
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  if (totalPages > 1) {
+    elPag.classList.remove('hidden');
+    elPgInfo.textContent = `${ini + 1}–${fim} de ${total.toLocaleString('pt-BR')}`;
+    btnPrev.disabled = _page === 0;
+    btnNext.disabled = _page >= totalPages - 1;
+  } else {
+    elPag.classList.add('hidden');
+  }
+
+  // Highlight sort
+  document.querySelectorAll('#notas-table thead th').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === _sortCol)
+      th.classList.add(_sortDir === 1 ? 'sort-asc' : 'sort-desc');
+  });
+}
+
+// ── Sort ao clicar cabeçalho ──────────────────────────────────────────────
+document.querySelectorAll('#notas-table thead th').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (_sortCol === col) _sortDir *= -1;
+    else { _sortCol = col; _sortDir = col === 'nota' ? -1 : 1; }
+    sortRows();
+    _page = 0;
+    renderTabela();
+  });
+});
+
+// ── Paginação ─────────────────────────────────────────────────────────────
+btnPrev.addEventListener('click', () => { _page--; renderTabela(); window.scrollTo(0,0); });
+btnNext.addEventListener('click', () => { _page++; renderTabela(); window.scrollTo(0,0); });
+
+// ── Busca ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-buscar').addEventListener('click', buscarNotas);
+document.getElementById('btn-limpar').addEventListener('click', async () => {
+  document.getElementById('f-lp').value        = '';
+  document.getElementById('f-lote').value      = '';
+  document.getElementById('f-subfase').value   = '';
+  document.getElementById('f-operador').value  = '';
+  document.getElementById('f-nota-min').value  = '';
+  document.getElementById('f-nota-max').value  = '';
+  document.getElementById('f-data-ini').value  = '';
+  document.getElementById('f-data-fim').value  = '';
+  fSearch.value = '';
+  // Restaura lotes/subfases/operadores sem filtro de LP
+  await carregarDependentes('', '');
+  buscarNotas();
+});
+// Enter na busca de texto reaplica filtro local (sem nova query API)
+fSearch.addEventListener('input', () => {
+  _page = 0;
+  aplicarFiltroLocal();
+});
+// Enter no campo de busca = nova query
+fSearch.addEventListener('keydown', e => {
+  if (e.key === 'Enter') buscarNotas();
+});
+
+// ── Export CSV ────────────────────────────────────────────────────────────
+document.getElementById('btn-csv').addEventListener('click', () => {
+  if (!_filtered.length) return;
+  const cols = ['atividade_id','nota','nota_descricao','operador_nome','revisor_nome','ut_nome','lote_nome','lp_nome','subfase_nome','data_inicio','data_fim'];
+  const header = ['ID Atividade','Nota','Descrição','Operador (recebeu)','Revisor (deu nota)','UT','Lote','LP','Subfase','Data Início','Data Fim'];
+  const csv = [header.join(';')]
+    .concat(_filtered.map(r => cols.map(c => {
+      const v = r[c] ?? '';
+      return String(v).includes(';') ? `"${v}"` : v;
+    }).join(';')))
+    .join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `notas_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+carregarFiltros();
+buscarNotas();
+</script>
+</body>
+</html>

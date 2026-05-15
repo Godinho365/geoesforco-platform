@@ -1,0 +1,225 @@
+{
+  "_nota": "Mapeamento validado contra banco 0734_1_2025_12_03_Andre (2026-04-29). sap_ids detectados automaticamente pelo sapMapping.js via sap_nome_contains.",
+  "_srid": 4674,
+  "_schema_edgv": "edgv",
+
+  "subfases": {
+    "ext_ferrovia": {
+      "id": 1,
+      "sap_nome_contains": ["ferrovia"],
+      "nome": "Extração de Ferrovia",
+      "camadas": [
+        { "tabela": "infra_ferrovia_l", "metrica": "km" }
+      ]
+    },
+
+    "ext_hidrografia_altimetria": {
+      "id": 2,
+      "sap_nome_contains": ["hidrografia e altimetria"],
+      "nome": "Extração da Hidrografia e Altimetria",
+      "camadas": [
+        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "km" },
+        { "tabela": "elemnat_curva_nivel_l", "metrica": "qtd", "join": "elemnat_trecho_drenagem_l", "_descricao": "Interseção curva de nível × drenagem" },
+        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "dens_conf", "join": "elemnat_trecho_drenagem_l", "_descricao": "Confluências de drenagem (densidade conf/km — topologia ST_Node)" },
+        { "tabela": "centroide_massa_dagua_p", "metrica": "qtd", "_descricao": "Centroides de massa d'água" },
+        { "tabela": "delimitador_massa_dagua_l", "metrica": "km"}
+      ]
+    },
+
+    "ext_toponimos": {
+      "id": 3,
+      "sap_nome_contains": ["toponimo"],
+      "nome": "Extração de Topônimos",
+      "camadas": [
+        { "tabela": "llp_localidade_p",                      "metrica": "qtd" },
+        { "tabela": "elemnat_toponimo_fisiografico_natural_p","metrica": "qtd" },
+        { "tabela": "elemnat_toponimo_fisiografico_natural_l","metrica": "km"  }
+      ]
+    },
+
+    "ext_vias_deslocamento": {
+      "id": 4,
+      "sap_nome_contains": ["deslocamento"],
+      "nome": "Extração de Vias de Deslocamento",
+      "camadas": [
+        { "tabela": "infra_via_deslocamento_l", "banco": "insumo_osm", "metrica": "km" },
+        { "tabela": "infra_elemento_viario_l",  "banco": "insumo_osm", "metrica": "km" },
+        { "tabela": "infra_mobilidade_urbana_l","banco": "insumo_osm", "metrica": "km" },
+        { "tabela": "infra_via_deslocamento_l", "banco": "insumo_osm", "metrica": "dens_ent", "join": "infra_via_deslocamento_l", "tabelas_uniao": ["infra_via_deslocamento_l", "infra_elemento_viario_l", "infra_mobilidade_urbana_l"], "_descricao": "Entroncamentos (densidade ent/km — todas as camadas de via)" }
+      ]
+    },
+
+    "ext_elemento_hidrografico": {
+      "id": 5,
+      "sap_nome_contains": ["elemento hidro"],
+      "nome": "Extração de Elemento Hidrográfico",
+      "camadas": [
+        { "tabela": "elemnat_elemento_hidrografico_p", "metrica": "qtd" },
+        { "tabela": "elemnat_sumidouro_vertedouro_p",  "metrica": "qtd" },
+        { "tabela": "elemnat_elemento_hidrografico_l", "metrica": "km"  },
+        { "tabela": "elemnat_elemento_hidrografico_a", "metrica": "perim"  },
+        { "tabela": "centroide_ilha_p",  "metrica": "qtd" }
+        
+
+      ]
+    },
+
+    "ext_area_sem_dados": {
+      "id": 6,
+      "sap_nome_contains": ["sem dado"],
+      "nome": "Extração de Área sem Dados",
+      "camadas": [
+        { "tabela": "llp_limite_legal_l", "metrica": "km" }
+      ]
+    },
+
+    "ext_limites": {
+      "id": 7,
+      "sap_nome_contains": ["limites"],
+      "nome": "Extração de Limites",
+      "camadas": [
+        { "tabela": "delimitador_limite_especial_l","metrica": "km" },
+        { "tabela": "centroide_limite_especial_p",  "metrica": "qtd" }
+        
+
+        
+       
+      ]
+    },
+
+    "ext_intersecao_hidro_transporte": {
+      "id": 8,
+      "sap_nome_contains": ["transporte"],
+      "nome": "Extração de Interseção de Hidrografia e Transporte",
+      "camadas": [
+        {
+          "tabela": "elemnat_trecho_drenagem_l",
+          "metrica": "qtd",
+          "join": "infra_via_deslocamento_l",
+          "banco_join": "insumo_osm",
+          "_descricao": "Cruzamentos drenagem (insumos_oficiais) × vias (insumo_osm) — pontos de interseção"
+        }
+      ]
+    },
+
+    "ext_area_edificada": {
+      "id": 9,
+      "sap_nome_contains": ["area edificada"],
+      "nome": "Extração de Área Edificada",
+      "camadas": [
+        { "tabela": "cobter_area_edificada_a", "metrica": "perim" }
+      ]
+    },
+
+    "ext_edificacao": {
+      "id": 10,
+      "sap_nome_contains": ["edificacao"],
+      "nome": "Extração de Edificação",
+      "camadas": [
+        { "tabela": "constr_edificacao_p",         "metrica": "qtd" },
+        { "tabela": "constr_edificacao_a",         "metrica": "qtd"  },
+        { "tabela": "constr_deposito_p",           "metrica": "qtd" },
+        { "tabela": "constr_deposito_a",           "metrica": "qtd"  }
+       
+      ]
+    },
+
+    "ext_vegetacao": {
+      "id": 11,
+      "sap_nome_contains": ["vegetacao"],
+      "nome": "Extração de Vegetação",
+      "camadas": [
+        { "tabela": "delimitador_vegetacao_l",                  "metrica": "km" },
+        { "tabela": "centroide_vegetacao_p", "metrica": "qtd" }
+      ]
+    },
+
+    "ext_planimetria": {
+      "id": 12,
+      "sap_nome_contains": ["planimetria"],
+      "nome": "Extração de Planimetria",
+      "camadas": [
+        { "tabela": "infra_elemento_energia_p",        "metrica": "qtd" },
+        { "tabela": "infra_obstaculo_vertical_p",      "metrica": "qtd" },
+        { "tabela": "infra_pista_pouso_p",             "metrica": "qtd" },
+        { "tabela": "constr_extracao_mineral_p",       "metrica": "qtd" },
+        { "tabela": "constr_ocupacao_solo_p",          "metrica": "qtd" },
+        { "tabela": "elemnat_elemento_fisiografico_p", "metrica": "qtd" },
+        { "tabela": "infra_elemento_energia_l",        "metrica": "km"  },
+        { "tabela": "infra_pista_pouso_l",             "metrica": "qtd"  },
+        { "tabela": "infra_trecho_duto_l",             "metrica": "km"  },
+        { "tabela": "infra_vala_l",                    "metrica": "km"  },
+        { "tabela": "infra_elemento_infraestrutura_l", "metrica": "qtd"  },
+        { "tabela": "constr_ocupacao_solo_l",          "metrica": "qtd"  },
+        { "tabela": "elemnat_elemento_fisiografico_l", "metrica": "qtd"  },
+        { "tabela": "infra_alteracao_fisiografica_antropica_l", "metrica": "qtd" },
+        { "tabela": "infra_elemento_energia_a",        "metrica": "qtd"  },
+        { "tabela": "infra_pista_pouso_a",             "metrica": "qtd"  },
+        { "tabela": "infra_elemento_infraestrutura_a", "metrica": "qtd"  },
+        { "tabela": "constr_ocupacao_solo_a",          "metrica": "qtd"  },
+        { "tabela": "constr_extracao_mineral_a",       "metrica": "qtd"  },
+        { "tabela": "elemnat_elemento_fisiografico_a", "metrica": "qtd"  },
+        { "tabela": "constr_area_uso_especifico_a","metrica": "qtd"  }
+      ]
+    },
+
+    "verificacao_final": {
+      "id": 13,
+      "sap_nome_contains": ["verificacao final"],
+      "nome": "Verificação Final",
+      "_nota": "União de todas as camadas das demais subfases — verifica o conjunto completo da UT.",
+      "camadas": [
+        { "tabela": "infra_ferrovia_l",                                "metrica": "km" },
+        { "tabela": "elemnat_trecho_drenagem_l",                       "metrica": "km" },
+        { "tabela": "elemnat_curva_nivel_l",                           "metrica": "qtd",      "join": "elemnat_trecho_drenagem_l" },
+        { "tabela": "elemnat_trecho_drenagem_l",                       "metrica": "dens_conf", "join": "elemnat_trecho_drenagem_l" },
+        { "tabela": "centroide_massa_dagua_p",                         "metrica": "qtd" },
+        { "tabela": "delimitador_massa_dagua_l",                       "metrica": "km" },
+        { "tabela": "llp_localidade_p",                                "metrica": "qtd" },
+        { "tabela": "elemnat_toponimo_fisiografico_natural_p",         "metrica": "qtd" },
+        { "tabela": "elemnat_toponimo_fisiografico_natural_l",         "metrica": "km" },
+        { "tabela": "infra_via_deslocamento_l",  "banco": "insumo_osm", "metrica": "km" },
+        { "tabela": "infra_elemento_viario_l",   "banco": "insumo_osm", "metrica": "km" },
+        { "tabela": "infra_mobilidade_urbana_l", "banco": "insumo_osm", "metrica": "km" },
+        { "tabela": "infra_via_deslocamento_l",  "banco": "insumo_osm", "metrica": "dens_ent", "join": "infra_via_deslocamento_l", "tabelas_uniao": ["infra_via_deslocamento_l", "infra_elemento_viario_l", "infra_mobilidade_urbana_l"] },
+        { "tabela": "elemnat_elemento_hidrografico_p",                 "metrica": "qtd" },
+        { "tabela": "elemnat_sumidouro_vertedouro_p",                  "metrica": "qtd" },
+        { "tabela": "elemnat_elemento_hidrografico_l",                 "metrica": "km" },
+        { "tabela": "elemnat_elemento_hidrografico_a",                 "metrica": "perim" },
+        { "tabela": "centroide_ilha_p",                                "metrica": "qtd" },
+        { "tabela": "llp_limite_legal_l",                              "metrica": "km" },
+        { "tabela": "delimitador_limite_especial_l",                   "metrica": "km" },
+        { "tabela": "centroide_limite_especial_p",                     "metrica": "qtd" },
+        { "tabela": "elemnat_trecho_drenagem_l",                       "metrica": "qtd",      "join": "infra_via_deslocamento_l", "banco_join": "insumo_osm" },
+        { "tabela": "cobter_area_edificada_a",                         "metrica": "perim" },
+        { "tabela": "constr_edificacao_p",                             "metrica": "qtd" },
+        { "tabela": "constr_edificacao_a",                             "metrica": "qtd" },
+        { "tabela": "constr_deposito_p",                               "metrica": "qtd" },
+        { "tabela": "constr_deposito_a",                               "metrica": "qtd" },
+        { "tabela": "delimitador_vegetacao_l",                         "metrica": "km" },
+        { "tabela": "centroide_vegetacao_p",                           "metrica": "qtd" },
+        { "tabela": "infra_elemento_energia_p",                        "metrica": "qtd" },
+        { "tabela": "infra_obstaculo_vertical_p",                      "metrica": "qtd" },
+        { "tabela": "infra_pista_pouso_p",                             "metrica": "qtd" },
+        { "tabela": "constr_extracao_mineral_p",                       "metrica": "qtd" },
+        { "tabela": "constr_ocupacao_solo_p",                          "metrica": "qtd" },
+        { "tabela": "elemnat_elemento_fisiografico_p",                 "metrica": "qtd" },
+        { "tabela": "infra_elemento_energia_l",                        "metrica": "km" },
+        { "tabela": "infra_pista_pouso_l",                             "metrica": "qtd" },
+        { "tabela": "infra_trecho_duto_l",                             "metrica": "km" },
+        { "tabela": "infra_vala_l",                                    "metrica": "km" },
+        { "tabela": "infra_elemento_infraestrutura_l",                 "metrica": "qtd" },
+        { "tabela": "constr_ocupacao_solo_l",                          "metrica": "qtd" },
+        { "tabela": "elemnat_elemento_fisiografico_l",                 "metrica": "qtd" },
+        { "tabela": "infra_alteracao_fisiografica_antropica_l",        "metrica": "qtd" },
+        { "tabela": "infra_elemento_energia_a",                        "metrica": "qtd" },
+        { "tabela": "infra_pista_pouso_a",                             "metrica": "qtd" },
+        { "tabela": "infra_elemento_infraestrutura_a",                 "metrica": "qtd" },
+        { "tabela": "constr_ocupacao_solo_a",                          "metrica": "qtd" },
+        { "tabela": "constr_extracao_mineral_a",                       "metrica": "qtd" },
+        { "tabela": "elemnat_elemento_fisiografico_a",                 "metrica": "qtd" },
+        { "tabela": "constr_area_uso_especifico_a",                    "metrica": "qtd" }
+      ]
+    }
+  }
+}

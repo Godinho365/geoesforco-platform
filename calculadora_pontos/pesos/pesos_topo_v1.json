@@ -1,0 +1,84 @@
+{
+  "versao": "1.0",
+  "data": "2026-04-29",
+  "autor": "godinho",
+  "descricao": "Pesos iniciais baseados em estimativas operacionais. A calibrar com dados históricos reais.",
+  "taxa_pts_hora": 50,
+  "_taxa_pts_hora_nota": "Pontos por hora de produção — usado apenas para estimativa visual. Ajustar conforme dados históricos reais.",
+
+  "pesos_geometria": {
+    "qtd":      1.0,
+    "km":       2.5,
+    "ha":       2.5,
+    "unidades": 3.0
+  },
+
+  "escala": {
+    "_descricao": "FALLBACK — usado apenas se curva_escala não estiver definida. mult = (referencia / denominador_escala) ^ expoente.",
+    "referencia": 50000,
+    "expoente":   0.2
+  },
+
+  "curva_escala": {
+    "_descricao": "Multiplicador global por escala de produção. Denominador menor = escala maior = mais esforço por feição. A calibrar com tempos reais de produção.",
+    "_nota_calibracao": "Valores iniciais estimados operacionalmente. Referência: 1:50.000 = fator 1.00. Amplitude proposital ~7x entre extremos 1:5k–1:250k.",
+    "pontos": [
+      { "ent_por_km_max": 5000,    "fator": 2.80 },
+      { "ent_por_km_max": 10000,   "fator": 2.20 },
+      { "ent_por_km_max": 25000,   "fator": 1.50 },
+      { "ent_por_km_max": 50000,   "fator": 1.00 },
+      { "ent_por_km_max": 100000,  "fator": 0.75 },
+      { "ent_por_km_max": 250000,  "fator": 0.50 },
+      { "ent_por_km_max": 9999999, "fator": 0.38 }
+    ]
+  },
+
+  "multiplicadores_subfase": {
+    "ext_ferrovia":                       { "id": 1,  "valor": 1.2 },
+    "ext_hidrografia_altimetria":         { "id": 2,  "valor": 1.8 },
+    "ext_toponimos":                      { "id": 3,  "valor": 0.5 },
+    "ext_vias_deslocamento":              { "id": 4,  "valor": 1.5 },
+    "ext_elemento_hidrografico":          { "id": 5,  "valor": 2.0 },
+    "ext_area_sem_dados":                 { "id": 6,  "valor": 0.8 },
+    "ext_limites":                        { "id": 7,  "valor": 1.5 },
+    "ext_intersecao_hidro_transporte":    { "id": 8,  "valor": 0.8 },
+    "ext_area_edificada":                 { "id": 9,  "valor": 1.2 },
+    "ext_edificacao":                     { "id": 10, "valor": 0.5},
+    "ext_vegetacao":                      { "id": 11, "valor": 2.0 },
+    "ext_planimetria":                    { "id": 12, "valor": 2.0 },
+    "verificacao_final":                  { "id": 13, "valor": 0.2 }
+  },
+
+  "curva_densidade_entroncamentos": {
+    "_descricao": "Fator multiplicativo sobre pts_vias_km baseado na densidade de entroncamentos (ent/km). pts_ent = km_vias × peso_km × (fator − 1.0) × mult_subfase",
+    "pontos": [
+        { "ent_por_km_max": 0.1,  "fator": 1.00 },
+        { "ent_por_km_max": 0.3,  "fator": 1.03 },
+        { "ent_por_km_max": 0.5,  "fator": 1.06 },
+        { "ent_por_km_max": 1.0,  "fator": 1.10 },
+        { "ent_por_km_max": 1.5,  "fator": 1.15 },
+        { "ent_por_km_max": 2.0,  "fator": 1.20 },
+        { "ent_por_km_max": 3.0,  "fator": 1.28 },
+        { "ent_por_km_max": 4.0,  "fator": 1.35 },
+        { "ent_por_km_max": 5.0,  "fator": 1.42 },
+        { "ent_por_km_max": 6.0,  "fator": 1.48 },
+        { "ent_por_km_max": 9999, "fator": 1.55 }
+    ]
+  },
+
+  "curva_densidade_confluencias": {
+    "_descricao": "Fator multiplicativo sobre pts_drenagem_km baseado na densidade de confluências (conf/km). Redes mais ramificadas (maiores densidades) recebem pontuação extra. pts_conf = km_dren × peso_km × (fator − 1.0) × mult_subfase",
+    "_nota_calibracao": "Densidades de drenagem são menores que vias: tipicamente 0.05–0.50 conf/km em 1:50000. A calibrar com dados reais de produção.",
+    "pontos": [
+        { "ent_por_km_max": 0.05, "fator": 1.00 },
+        { "ent_por_km_max": 0.10, "fator": 1.04 },
+        { "ent_por_km_max": 0.20, "fator": 1.08 },
+        { "ent_por_km_max": 0.30, "fator": 1.13 },
+        { "ent_por_km_max": 0.50, "fator": 1.18 },
+        { "ent_por_km_max": 0.80, "fator": 1.25 },
+        { "ent_por_km_max": 1.20, "fator": 1.32 },
+        { "ent_por_km_max": 2.00, "fator": 1.40 },
+        { "ent_por_km_max": 9999, "fator": 1.48 }
+    ]
+  }
+}

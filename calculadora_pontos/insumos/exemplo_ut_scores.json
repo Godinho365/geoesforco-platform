@@ -1,0 +1,53 @@
+{
+  "gerado_em": "2026-04-29T20:05:43",
+  "versao_pesos": "1.0",
+  "banco": "0734_1_2025_12_03_Andre",
+  "scores": [
+    {
+      "ut_id": 1,
+      "area_km2": 256.82,
+      "score_total": 148269.194,
+      "por_subfase": {
+        "ext_vegetacao": 64646.5277,
+        "ext_hidrografia_altimetria": 7737.3249,
+        "ext_edificacao": 862.0,
+        "ext_vias_deslocamento": 835.28,
+        "ext_area_edificada": 43.7386,
+        "ext_toponimos": 7.5,
+        "ext_planimetria": 1.8,
+        "ext_intersecao_hidro_transporte": 0.4258,
+        "verificacao_final": 74134.597
+      }
+    },
+    {
+      "ut_id": 2,
+      "area_km2": 258.04,
+      "score_total": 147970.423,
+      "por_subfase": {
+        "ext_vegetacao": 65022.0278,
+        "ext_hidrografia_altimetria": 7244.35,
+        "ext_vias_deslocamento": 871.47,
+        "ext_edificacao": 700.0,
+        "ext_limites": 139.7175,
+        "ext_toponimos": 7.5,
+        "ext_intersecao_hidro_transporte": 0.1462,
+        "verificacao_final": 73985.2115
+      }
+    },
+    {
+      "ut_id": 3,
+      "area_km2": 256.97,
+      "score_total": 147458.9204,
+      "por_subfase": {
+        "ext_vegetacao": 64738.0012,
+        "ext_hidrografia_altimetria": 7194.5812,
+        "ext_edificacao": 850.0,
+        "ext_vias_deslocamento": 849.45,
+        "ext_limites": 90.9825,
+        "ext_toponimos": 6.0,
+        "ext_intersecao_hidro_transporte": 0.4453,
+        "verificacao_final": 73729.4602
+      }
+    }
+  ]
+}

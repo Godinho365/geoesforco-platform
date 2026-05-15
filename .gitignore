@@ -1,0 +1,6 @@
+geoesforco-ui/node_modules/
+geoesforco-ui/.env
+*.log
+geoesforco-ui/C:Tempgeo_server.log
+.claude/
+obsidian/

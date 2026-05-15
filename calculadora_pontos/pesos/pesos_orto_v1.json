@@ -1,0 +1,66 @@
+{
+  "versao": "1.0",
+  "data": "2026-05-11",
+  "autor": "godinho",
+  "descricao": "Pesos para Carta Ortoimagem (EDGV 3.0 Orto). Valores iniciais baseados na Topo 1.4 — a calibrar com dados históricos reais.",
+  "taxa_pts_hora": 50,
+  "_taxa_pts_hora_nota": "Pontos por hora de produção — ajustar conforme dados históricos da Orto.",
+
+  "pesos_geometria": {
+    "qtd":      1.0,
+    "km":       2.5,
+    "ha":       2.5,
+    "unidades": 3.0
+  },
+
+  "escala": {
+    "_descricao": "FALLBACK — usado apenas se curva_escala não estiver definida.",
+    "referencia": 50000,
+    "expoente":   0.2
+  },
+
+  "curva_escala": {
+    "_descricao": "Multiplicador global por escala de produção. Orto tipicamente em escalas menores (1:50k–1:250k).",
+    "pontos": [
+      { "ent_por_km_max": 5000,    "fator": 2.80 },
+      { "ent_por_km_max": 10000,   "fator": 2.20 },
+      { "ent_por_km_max": 25000,   "fator": 1.50 },
+      { "ent_por_km_max": 50000,   "fator": 1.00 },
+      { "ent_por_km_max": 100000,  "fator": 0.75 },
+      { "ent_por_km_max": 250000,  "fator": 0.50 },
+      { "ent_por_km_max": 9999999, "fator": 0.38 }
+    ]
+  },
+
+  "multiplicadores_subfase": {
+    "ext_ferrovia":               { "id": 1,  "valor": 1.2 },
+    "ext_hidrografia_altimetria": { "id": 2,  "valor": 1.8 },
+    "ext_toponimos":              { "id": 3,  "valor": 0.5 },
+    "ext_vias_deslocamento":      { "id": 4,  "valor": 1.5 },
+    "ext_area_sem_dados":         { "id": 6,  "valor": 0.8 },
+    "ext_limites":                { "id": 7,  "valor": 1.5 },
+    "ext_planimetria":            { "id": 12, "valor": 2.0 },
+    "verificacao_final":          { "id": 13, "valor": 0.2 }
+  },
+
+  "curva_densidade_entroncamentos": {
+    "_descricao": "Orto: apenas vias estaduais/federais — densidade menor que Topo. Fator reduzido.",
+    "pontos": [
+        { "ent_por_km_max": 0.1,  "fator": 1.00 },
+        { "ent_por_km_max": 0.3,  "fator": 1.02 },
+        { "ent_por_km_max": 0.5,  "fator": 1.04 },
+        { "ent_por_km_max": 1.0,  "fator": 1.07 },
+        { "ent_por_km_max": 1.5,  "fator": 1.10 },
+        { "ent_por_km_max": 2.0,  "fator": 1.14 },
+        { "ent_por_km_max": 3.0,  "fator": 1.18 },
+        { "ent_por_km_max": 9999, "fator": 1.22 }
+    ]
+  },
+
+  "curva_densidade_confluencias": {
+    "_descricao": "Sem confluências na Orto (sem dens_conf no mapeamento_orto.json).",
+    "pontos": [
+        { "ent_por_km_max": 9999, "fator": 1.00 }
+    ]
+  }
+}

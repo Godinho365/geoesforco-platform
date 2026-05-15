@@ -1,0 +1,115 @@
+{
+  "_nota": "Mapeamento EDGV 3.0 Orto — Classes obrigatórias (Tabela 1). Subfases sem classes definidas ficam com camadas:[] resultando em 0 pts.",
+  "_srid": 4674,
+  "_schema_edgv": "edgv",
+
+  "subfases": {
+    "ext_ferrovia": {
+      "id": 1,
+      "sap_nome_contains": ["ferrovia"],
+      "nome": "Extração de Ferrovia",
+      "camadas": [
+        { "tabela": "infra_ferrovia_l", "metrica": "km" }
+      ]
+    },
+
+    "ext_hidrografia_altimetria": {
+      "id": 2,
+      "sap_nome_contains": ["hidrografia e altimetria"],
+      "nome": "Extração da Hidrografia e Altimetria",
+      "_nota": "Orto: rios/canais com nome + massas d'água com nome + curva de nível (km total). Mesmo banco EDGV.",
+      "camadas": [
+        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "km", "where": "nome IS NOT NULL" },
+        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "dens_conf", "join": "elemnat_trecho_drenagem_l", "where": "nome IS NOT NULL", "_descricao": "Confluências de drenagem com nome (densidade conf/km — ST_Node)" },
+        { "tabela": "elemnat_curva_nivel_l", "metrica": "qtd", "join": "elemnat_trecho_drenagem_l", "_descricao": "Interseção curva de nível × drenagem" },
+        { "tabela": "centroide_massa_dagua_p", "metrica": "qtd", "where": "nome IS NOT NULL", "_descricao": "Centroides de massa d'água com nome" },
+        { "tabela": "delimitador_massa_dagua_l", "metrica": "km_named_body", "join": "centroide_massa_dagua_p", "_descricao": "km de delimitador de massa d'água nomeada (ST_Polygonize → polígonos com centroide nomeado)" }
+      ]
+    },
+
+    "ext_toponimos": {
+      "id": 3,
+      "sap_nome_contains": ["toponimo"],
+      "nome": "Extração de Topônimos",
+      "camadas": [
+        { "tabela": "llp_localidade_p",                       "metrica": "qtd", "where": "tipo IN (1, 4)",    "_descricao": "Apenas cidade (tipo=1) e vila (tipo=4)" },
+        { "tabela": "elemnat_toponimo_fisiografico_natural_p", "metrica": "qtd", "where": "nome IS NOT NULL", "_descricao": "Topônimos fisiográficos pontuais com nome" },
+        { "tabela": "elemnat_toponimo_fisiografico_natural_l", "metrica": "km",  "where": "nome IS NOT NULL", "_descricao": "Topônimos fisiográficos lineares com nome (km)" }
+      ]
+    },
+
+    "ext_vias_deslocamento": {
+      "id": 4,
+      "sap_nome_contains": ["deslocamento"],
+      "nome": "Extração de Vias de Deslocamento",
+      "_nota": "Orto: somente vias com sigla (federais BR-xxx e estaduais XX-xxx).",
+      "camadas": [
+        { "tabela": "infra_via_deslocamento_l", "banco": "insumo_osm", "metrica": "km",  "where": "sigla IS NOT NULL" },
+        { "tabela": "infra_via_deslocamento_l", "banco": "insumo_osm", "metrica": "dens_ent", "join": "infra_via_deslocamento_l", "tabelas_uniao": ["infra_via_deslocamento_l"], "where": "sigla IS NOT NULL", "_descricao": "Entroncamentos de vias com sigla (federais/estaduais)" }
+      ]
+    },
+
+    "ext_area_sem_dados": {
+      "id": 6,
+      "sap_nome_contains": ["sem dado"],
+      "nome": "Extração de Área sem Dados",
+      "_nota": "Orto: polígonos fora do Brasil ou sem cobertura de imagem.",
+      "camadas": [
+        { "tabela": "llp_limite_legal_l", "metrica": "km" }
+       
+        
+      ]
+    },
+
+    "ext_limites": {
+      "id": 7,
+      "sap_nome_contains": ["limites"],
+      "nome": "Extração de Limites",
+      "_nota": "Classes a definir — preencher após levantamento da Tabela 2.",
+      "camadas": [
+         { "tabela": "delimitador_limite_especial_l","metrica": "km" },
+         { "tabela": "centroide_limite_especial_p",  "metrica": "qtd" }
+      ]
+    },
+
+    "ext_planimetria": {
+      "id": 12,
+      "sap_nome_contains": ["planimetria"],
+      "nome": "Extração de Planimetria",
+      "_nota": "Classes a definir — preencher após levantamento da Tabela 2.",
+      "camadas": [
+        { "tabela": "infra_pista_pouso_p",             "metrica": "qtd" },
+        { "tabela": "infra_pista_pouso_l",             "metrica": "qtd" },
+        { "tabela": "infra_elemento_energia_l",        "metrica": "km"  },
+        { "tabela": "infra_elemento_energia_p",        "metrica": "qtd", "where": "tipo <> 1401", "_descricao": "Elementos de energia exceto tipo 1401 (Torre)" }
+      ]
+    },
+
+    "verificacao_final": {
+      "id": 13,
+      "sap_nome_contains": ["verificacao final"],
+      "nome": "Verificação Final",
+      "_nota": "União de todas as camadas das demais subfases — verifica o conjunto completo da UT.",
+      "camadas": [
+        { "tabela": "infra_ferrovia_l",                        "metrica": "km" },
+        { "tabela": "elemnat_trecho_drenagem_l",               "metrica": "km",          "where": "nome IS NOT NULL" },
+        { "tabela": "elemnat_trecho_drenagem_l",               "metrica": "dens_conf",   "join": "elemnat_trecho_drenagem_l", "where": "nome IS NOT NULL" },
+        { "tabela": "elemnat_curva_nivel_l",                   "metrica": "qtd",         "join": "elemnat_trecho_drenagem_l" },
+        { "tabela": "centroide_massa_dagua_p",                 "metrica": "qtd",         "where": "nome IS NOT NULL" },
+        { "tabela": "delimitador_massa_dagua_l",               "metrica": "km_named_body","join": "centroide_massa_dagua_p" },
+        { "tabela": "llp_localidade_p",                       "metrica": "qtd",         "where": "tipo IN (1, 4)" },
+        { "tabela": "elemnat_toponimo_fisiografico_natural_p", "metrica": "qtd",         "where": "nome IS NOT NULL" },
+        { "tabela": "elemnat_toponimo_fisiografico_natural_l", "metrica": "km",          "where": "nome IS NOT NULL" },
+        { "tabela": "infra_via_deslocamento_l",  "banco": "insumo_osm", "metrica": "km",       "where": "sigla IS NOT NULL" },
+        { "tabela": "infra_via_deslocamento_l",  "banco": "insumo_osm", "metrica": "dens_ent", "join": "infra_via_deslocamento_l", "tabelas_uniao": ["infra_via_deslocamento_l"], "where": "sigla IS NOT NULL" },
+        { "tabela": "llp_limite_legal_l",                     "metrica": "km" },
+        { "tabela": "delimitador_limite_especial_l",          "metrica": "km" },
+        { "tabela": "centroide_limite_especial_p",            "metrica": "qtd" },
+        { "tabela": "infra_pista_pouso_p",                    "metrica": "qtd" },
+        { "tabela": "infra_pista_pouso_l",                    "metrica": "qtd" },
+        { "tabela": "infra_elemento_energia_l",               "metrica": "km" },
+        { "tabela": "infra_elemento_energia_p",               "metrica": "qtd",         "where": "tipo <> 1401" }
+      ]
+    }
+  }
+}

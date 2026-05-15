@@ -1,0 +1,2055 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoEsforço — Calculadora MI</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d1b2a;
+  --bg2:     #111d35;
+  --bg3:     #0a1628;
+  --border:  #1a3358;
+  --text:    #cfd8dc;
+  --muted:   #546e7a;
+  --accent:  #4fc3f7;
+  --accent2: #0288d1;
+  --success: #66bb6a;
+  --warn:    #ffa726;
+  --danger:  #ef5350;
+  --font:    'Segoe UI', system-ui, sans-serif;
+}
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+button  { cursor: pointer; font-family: var(--font); }
+input, select { font-family: var(--font); }
+a { color: inherit; text-decoration: none; }
+.hidden { display: none !important; }
+
+/* ── Header ── */
+#header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; height: 46px; min-height: 46px;
+  background: linear-gradient(160deg, #0b1e38 0%, #0a2e52 100%);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; z-index: 100;
+}
+.h-logo { display: flex; align-items: center; gap: 8px; }
+.h-logo-img       { height: 30px; width: auto; object-fit: contain; }
+.h-logo-fallback  { display: flex; align-items: center; }
+.h-logo-mark {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, #4fc3f7, #0288d1);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 900; color: #fff; flex-shrink: 0;
+}
+.h-title  { font-size: 14px; font-weight: 700; color: #fff; }
+#header h1 { font-size: 14px; font-weight: 600; color: var(--accent); white-space: nowrap; }
+.h-sep    { flex: 1; }
+.h-nav-link {
+  padding: 4px 9px; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); font-size: 11px; transition: all .15s; white-space: nowrap;
+}
+.h-nav-link:hover { border-color: var(--accent); color: var(--accent); }
+.h-back {
+  padding: 4px 11px;
+  background: rgba(79,195,247,.1); border: 1px solid rgba(79,195,247,.25);
+  border-radius: 6px; color: var(--accent); font-size: 11px; font-weight: 600;
+  transition: background .15s; white-space: nowrap;
+}
+.h-back:hover { background: rgba(79,195,247,.18); }
+
+/* ── Main layout: sidebar | map | result-drawer ── */
+#app {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  width: 270px; min-width: 270px;
+  background: rgba(8,16,34,0.97);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  z-index: 10;
+}
+.sb-section {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sb-section-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .7px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 7px;
+}
+.sb-filter { display: flex; flex-direction: column; gap: 5px; }
+.sb-sel {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text); padding: 4px 7px; font-size: 12px; width: 100%;
+}
+.sb-sel:focus { outline: none; border-color: var(--accent); }
+.sb-search {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text); padding: 4px 7px; font-size: 12px; width: 100%;
+}
+.sb-search:focus { outline: none; border-color: var(--accent); }
+.sb-search::placeholder { color: var(--muted); }
+
+/* UT list */
+#ut-lista-wrap {
+  flex: 1; overflow-y: auto; min-height: 0;
+}
+#ut-lista-wrap::-webkit-scrollbar { width: 3px; }
+#ut-lista-wrap::-webkit-scrollbar-track { background: transparent; }
+#ut-lista-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.ut-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 12px; cursor: pointer;
+  border-bottom: 1px solid rgba(26,51,88,.35);
+  transition: background .1s;
+}
+.ut-item:hover   { background: rgba(79,195,247,.06); }
+.ut-item.selected { background: rgba(102,187,106,.08); }
+.ut-item input[type="checkbox"] { accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+.ut-item-info { flex: 1; min-width: 0; }
+.ut-item-nome { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ut-item-meta { font-size: 10px; color: var(--muted); }
+.ut-lista-empty { padding: 16px 12px; color: var(--muted); font-size: 11px; text-align: center; }
+
+/* Skeleton shimmer */
+.skel-ut   { padding: 7px 12px; }
+.skel-line {
+  height: 8px; border-radius: 3px; margin-bottom: 4px;
+  background: linear-gradient(90deg, var(--bg2) 25%, #1a3358 50%, var(--bg2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite;
+}
+.skel-w70 { width: 70%; }
+.skel-w40 { width: 40%; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* Banco selector */
+.banco-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.banco-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  transition: background .2s, box-shadow .2s;
+}
+.banco-dot-off { background: var(--muted); }
+.banco-dot-ok  { background: var(--success); box-shadow: 0 0 5px var(--success); }
+.banco-dot-err { background: var(--danger);  box-shadow: 0 0 5px var(--danger); }
+.banco-spin {
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 1.5px solid var(--border); border-top-color: var(--accent);
+  animation: spin .7s linear infinite; flex-shrink: 0;
+}
+
+/* Sidebar footer */
+#sb-footer {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+#sel-badge {
+  font-size: 11px; color: var(--accent); font-weight: 700;
+}
+.lp-comp-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.lp-comp-label { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+
+.sb-quick-btns {
+  display: flex; gap: 5px;
+}
+.sb-quick-btn {
+  flex: 1; padding: 3px 0; border-radius: 4px; font-size: 10px;
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  transition: all .12s;
+}
+.sb-quick-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+#btn-calcular {
+  width: 100%; padding: 8px;
+  background: linear-gradient(135deg, #0288d1, #026db3);
+  border: none; border-radius: 7px; color: #fff;
+  font-size: 13px; font-weight: 700;
+  transition: opacity .15s, transform .1s;
+}
+#btn-calcular:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+#btn-calcular:disabled { opacity: .38; cursor: not-allowed; transform: none; }
+
+/* ── Map area ── */
+#map-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+#map-container {
+  width: 100%; height: 100%;
+}
+/* Leaflet overrides for dark theme */
+.leaflet-container { background: #0a1628 !important; }
+.map-tooltip {
+  background: rgba(8,16,34,0.92) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  font-family: var(--font) !important;
+  font-size: 11px !important;
+  border-radius: 5px !important;
+  padding: 3px 7px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5) !important;
+}
+.map-tooltip::before { display: none !important; }
+
+#map-hint {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  z-index: 500;
+}
+#map-hint.hidden { display: none; }
+.map-hint-inner {
+  background: rgba(8,16,34,0.88);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px 28px;
+  text-align: center;
+  max-width: 280px;
+  color: var(--muted);
+}
+.map-hint-icon { font-size: 32px; margin-bottom: 10px; opacity: .5; }
+.map-hint-text { font-size: 12px; line-height: 1.6; }
+
+/* Map overlay: loading UTs */
+#map-loading {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(8,16,34,0.9); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 14px; font-size: 11px; color: var(--accent);
+  display: flex; align-items: center; gap: 8px;
+  z-index: 600;
+}
+#map-loading.hidden { display: none; }
+.map-spin {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: spin .7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Result drawer ── */
+#result-panel {
+  width: 520px; min-width: 520px;
+  background: rgba(8,16,34,0.97);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  transition: width .3s cubic-bezier(.4,0,.2,1), min-width .3s cubic-bezier(.4,0,.2,1);
+  z-index: 10;
+}
+#result-panel.closed { width: 0 !important; min-width: 0 !important; }
+
+#result-panel-top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.rp-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+#btn-close-result {
+  width: 24px; height: 24px; border-radius: 5px;
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  transition: all .12s;
+}
+#btn-close-result:hover { border-color: var(--danger); color: var(--danger); }
+
+#result-panel-body {
+  flex: 1; overflow-y: auto; padding: 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+#result-panel-body::-webkit-scrollbar { width: 4px; }
+#result-panel-body::-webkit-scrollbar-track { background: transparent; }
+#result-panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+#loading-wrap {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; flex: 1; color: var(--muted); padding: 40px 0;
+}
+.big-spin {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  animation: spin .8s linear infinite;
+}
+
+/* ── Stat summary bar ── */
+.res-stat-bar {
+  display: flex; align-items: center;
+  padding: 9px 16px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+}
+.res-stat-item { display: flex; flex-direction: column; align-items: center; gap: 1px; flex: 1; }
+.res-stat-val  { font-size: 13px; font-weight: 800; color: var(--accent); line-height: 1.2; }
+.res-stat-lbl  { font-size: 9px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.res-stat-div  { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; margin: 0 10px; }
+
+/* ── Score comparison cards ── */
+.res-score-row {
+  display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+}
+.res-score-card {
+  flex: 1; padding: 16px 18px;
+  background: var(--bg2);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.res-score-badge {
+  display: inline-flex; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; width: fit-content; margin-bottom: 6px;
+}
+.badge-topo { background: rgba(79,195,247,.1); border: 1px solid rgba(79,195,247,.25); color: var(--accent); }
+.badge-orto { background: rgba(255,167,38,.1); border: 1px solid rgba(255,167,38,.3);  color: #ffa726; }
+.res-score-num {
+  font-size: 32px; font-weight: 900; line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: -.5px;
+}
+.res-score-num.topo { color: var(--accent); }
+.res-score-num.orto { color: #ffa726; }
+.res-score-pts-lbl  { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.res-score-vs {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 10px 16px; gap: 5px; flex-shrink: 0;
+  background: var(--bg3);
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+}
+.vs-label { font-size: 9px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.vs-delta { font-size: 15px; font-weight: 800; }
+.vs-delta.pos { color: var(--success); }
+.vs-delta.neg { color: var(--danger); }
+.vs-delta.neu { color: var(--muted); }
+
+/* ── Table wrapper ── */
+.res-table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.res-tbl-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 12px 7px; border-bottom: 1px solid var(--border);
+}
+.res-tbl-title { font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
+.res-tbl-btns  { display: flex; gap: 5px; }
+.btn-xs {
+  padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600;
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  transition: all .12s; cursor: pointer; white-space: nowrap;
+}
+.btn-xs:hover { border-color: var(--accent); color: var(--accent); }
+.btn-xs.green { border-color: rgba(102,187,106,.4); color: var(--success); }
+.btn-xs.green:hover { background: rgba(102,187,106,.1); }
+
+/* Table scroll */
+.tbl-scroll-wrap { max-height: 460px; overflow-y: auto; }
+.tbl-scroll-wrap::-webkit-scrollbar { width: 4px; }
+.tbl-scroll-wrap::-webkit-scrollbar-track { background: transparent; }
+.tbl-scroll-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+table.mi-tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+table.mi-tbl thead { position: sticky; top: 0; z-index: 2; }
+table.mi-tbl th {
+  background: var(--bg3); padding: 7px 10px;
+  font-size: 10px; font-weight: 700; color: var(--muted);
+  text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+table.mi-tbl th:first-child { text-align: left; width: auto; }
+table.mi-tbl th.th-pts   { width: 82px; }
+table.mi-tbl th.th-delta { width: 50px; }
+table.mi-tbl td { padding: 0; border-bottom: 1px solid rgba(26,51,88,.4); vertical-align: middle; }
+table.mi-tbl tr:last-child td { border-bottom: none; }
+table.mi-tbl tr.sf-row:hover .tdi { background: rgba(79,195,247,.03); }
+table.mi-tbl tr.total-row .tdi { background: var(--bg3) !important; }
+table.mi-tbl tr.total-row td { border-top: 2px solid var(--border); border-bottom: none; }
+
+/* td inner — all content goes inside here */
+.tdi { display: block; padding: 7px 10px; }
+
+/* SF name cell */
+td.td-sf .tdi { display: flex; align-items: center; gap: 0; padding: 7px 8px 7px 10px; }
+.sf-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-right: 7px; }
+.sf-name-text {
+  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; font-weight: 600; font-size: 11px;
+}
+.sf-expand {
+  width: 16px; text-align: center; flex-shrink: 0; margin-left: 4px;
+  color: var(--muted); font-size: 9px; cursor: pointer;
+  transition: color .1s; user-select: none;
+}
+.sf-expand:hover { color: var(--accent); }
+
+/* Pts cell with proportional bar */
+td.td-pts .tdi {
+  text-align: right; font-variant-numeric: tabular-nums; font-weight: 600;
+  position: relative; overflow: hidden; width: 82px; padding-right: 12px;
+}
+.pts-bg {
+  position: absolute; left: 0; top: 3px; bottom: 3px;
+  border-radius: 0 3px 3px 0; pointer-events: none;
+}
+.pts-val { position: relative; z-index: 1; }
+td.td-pts-zero .tdi { text-align: right; width: 82px; color: rgba(84,110,122,.45); font-size: 10px; }
+td.td-na .tdi {
+  text-align: right; width: 82px;
+  font-size: 10px; font-weight: 700; letter-spacing: .4px;
+  color: #546e7a;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(26,51,88,.18) 0px, rgba(26,51,88,.18) 3px,
+    transparent        3px, transparent        7px
+  );
+}
+td.td-dpos .tdi { text-align: right; width: 50px; color: var(--success); font-weight: 700; font-size: 10px; }
+td.td-dneg .tdi { text-align: right; width: 50px; color: var(--danger);  font-weight: 700; font-size: 10px; }
+td.td-dneu .tdi { text-align: right; width: 50px; color: var(--muted);   font-size: 10px; }
+
+/* Total row pts */
+td.td-pts.total .tdi, td.td-pts-zero.total .tdi { font-size: 12px; font-weight: 800; }
+
+/* Detail row */
+.detail-row td { padding: 0 !important; border-bottom: 1px solid rgba(26,51,88,.5) !important; }
+.detail-inner {
+  background: rgba(7,13,28,.75); padding: 10px 14px 12px;
+  border-top: 1px solid rgba(26,51,88,.5);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 18px;
+}
+.det-lp-hd {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+  padding-bottom: 5px; margin-bottom: 5px; border-bottom: 1px solid rgba(26,51,88,.6);
+}
+.det-cam-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 0 2px 8px; font-size: 10px;
+  border-left: 2px solid rgba(26,51,88,.4);
+  transition: border-color .1s;
+}
+.det-cam-row:hover { border-left-color: var(--accent); }
+.det-cam-name { flex: 1; min-width: 0; color: #6e8fa6; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.det-cam-val  { color: var(--muted); white-space: nowrap; font-size: 9.5px; flex-shrink: 0; }
+.det-cam-pts  { white-space: nowrap; font-weight: 700; color: var(--text); flex-shrink: 0; min-width: 46px; text-align: right; }
+.det-cam-pts small { font-weight: 400; color: var(--muted); font-size: 8.5px; }
+
+/* Mode toggle */
+.mode-toggle {
+  display: flex; gap: 4px; padding: 8px 12px 6px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.mode-btn {
+  flex: 1; padding: 5px 0; border-radius: 6px; font-size: 11px; font-weight: 700;
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  transition: all .15s;
+}
+.mode-btn.active {
+  background: rgba(79,195,247,.12); border-color: rgba(79,195,247,.4); color: var(--accent);
+}
+
+/* Painel SAP ocupa o espaço restante da sidebar para o footer ficar visível */
+#panel-sap {
+  display: flex; flex-direction: column;
+  flex: 1; min-height: 0; overflow: hidden;
+}
+
+/* Painel Arquivo também ocupa o espaço restante quando ativo */
+#panel-arquivo {
+  flex: 1; min-height: 0; overflow-y: auto;
+}
+#panel-banco {
+  flex: 1; min-height: 0; overflow-y: auto;
+}
+
+/* Subfase select dentro de SAP panel */
+#sel-subfase option[value=""] { color: var(--muted); }
+
+/* Drop zone para arquivo */
+.drop-zone {
+  border: 2px dashed var(--border); border-radius: 8px;
+  padding: 18px 12px; text-align: center; cursor: pointer;
+  transition: all .15s; position: relative;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent); background: rgba(79,195,247,.05);
+}
+.drop-zone input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.drop-zone-icon { font-size: 22px; margin-bottom: 6px; }
+.drop-zone-text { font-size: 11px; color: var(--muted); line-height: 1.5; }
+.drop-zone-text strong { color: var(--text); }
+
+/* Info do arquivo parseado */
+.arquivo-info {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 7px;
+  padding: 8px 10px; font-size: 11px;
+}
+.arquivo-info-nome { font-weight: 700; color: var(--accent); margin-bottom: 3px; }
+.arquivo-info-meta { color: var(--muted); }
+
+/* Escala para modo arquivo */
+.escala-row { display: flex; align-items: center; gap: 6px; }
+.escala-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+/* LP badge note in table */
+.lp-not-in-note { font-size: 9px; color: rgba(84,110,122,.6); font-style: italic; }
+
+/* ── Chart ── */
+.res-chart-wrap {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
+  padding: 12px 14px;
+}
+.chart-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  color: var(--muted); letter-spacing: .5px; margin-bottom: 12px;
+}
+.chart-svg-wrap { overflow-x: auto; display: flex; justify-content: center; }
+svg.stacked-bar text { font-family: var(--font); }
+
+/* ── Legend ── */
+.res-legend {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px 12px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
+  padding: 10px 12px;
+}
+.leg-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+.leg-dot  { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Toasts ── */
+#toast-container {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  z-index: 9999; pointer-events: none;
+}
+.toast {
+  padding: 8px 16px; border-radius: 7px; font-size: 12px; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  opacity: 0; transform: translateY(8px);
+  transition: opacity .22s ease, transform .22s ease;
+  pointer-events: auto;
+  white-space: nowrap; max-width: 440px; overflow: hidden; text-overflow: ellipsis;
+}
+.toast.toast-in { opacity: 1; transform: translateY(0); }
+.toast-info  { background: rgba(11,30,56,.95);  border: 1px solid var(--border);            color: var(--text); }
+.toast-ok    { background: rgba(27,56,27,.95);  border: 1px solid rgba(102,187,106,.4);    color: var(--success); }
+.toast-error { background: rgba(56,18,18,.95);  border: 1px solid rgba(239,83,80,.4);      color: var(--danger); }
+.toast-warn  { background: rgba(56,40,10,.95);  border: 1px solid rgba(255,167,38,.4);     color: #ffa726; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header id="header">
+  <div class="h-logo">
+    <img src="logo.png" alt="GeoEsforço" class="h-logo-img"
+         onerror="this.style.display='none';document.querySelector('.h-logo-fallback').style.display='flex'">
+    <div class="h-logo-fallback" style="display:none">
+      <div class="h-logo-mark">GE</div>
+    </div>
+    <div class="h-title">GeoEsforço</div>
+  </div>
+
+  <h1>🗺 Calculadora MI</h1>
+
+  <div class="h-sep"></div>
+  <a href="/notas.html"    class="h-nav-link">📊 Notas</a>
+  <a href="/unidades.html" class="h-nav-link">⊞ UTs</a>
+  <a href="/"              class="h-back">← Calculadora</a>
+</header>
+
+<!-- ── App ── -->
+<div id="app">
+
+  <!-- ── Sidebar ── -->
+  <aside id="sidebar">
+
+    <!-- Toggle de modo -->
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-btn-sap"     data-mode="sap">🛰 SAP</button>
+      <button class="mode-btn"        id="mode-btn-arquivo" data-mode="arquivo">📁 Arquivo</button>
+      <button class="mode-btn"        id="mode-btn-banco"   data-mode="banco">🗺 Banco</button>
+    </div>
+
+    <!-- ── Painel SAP ── -->
+    <div id="panel-sap">
+      <div class="sb-section">
+        <div class="sb-section-title">Filtros SAP</div>
+        <div class="sb-filter">
+          <select id="sel-lp" class="sb-sel">
+            <option value="">Todas as LPs</option>
+          </select>
+          <select id="sel-lote" class="sb-sel">
+            <option value="">— Selecione um lote —</option>
+          </select>
+          <select id="sel-subfase" class="sb-sel">
+            <option value="">Todas as subfases</option>
+          </select>
+          <input id="inp-search" type="text" class="sb-search" placeholder="🔍 Buscar UT por nome…">
+        </div>
+      </div>
+
+      <!-- Lista de UTs -->
+      <div id="ut-lista-wrap">
+        <div id="ut-lista">
+          <div class="ut-lista-empty">Selecione um lote para ver as UTs.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Painel Arquivo ── -->
+    <div id="panel-arquivo" class="hidden" style="padding:10px 12px;display:flex;flex-direction:column;gap:10px">
+      <div class="sb-section-title" style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted)">Arquivo geoespacial</div>
+
+      <div class="drop-zone" id="arquivo-drop">
+        <input type="file" id="inp-arquivo" accept=".zip,.gpkg">
+        <div class="drop-zone-icon">📁</div>
+        <div class="drop-zone-text">
+          Arraste ou clique para carregar<br>
+          <strong>.zip</strong> (SHP zipado) ou <strong>.gpkg</strong>
+        </div>
+      </div>
+
+      <div id="arquivo-info" class="arquivo-info hidden">
+        <div id="arquivo-info-nome" class="arquivo-info-nome"></div>
+        <div id="arquivo-info-meta" class="arquivo-info-meta"></div>
+      </div>
+    </div>
+
+    <!-- ── Painel Banco ── -->
+    <div id="panel-banco" class="hidden" style="padding:10px 12px;display:flex;flex-direction:column;gap:10px">
+      <div class="sb-section-title" style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted)">Banco EDGV</div>
+      <div class="banco-row">
+        <input id="inp-banco" class="sb-search" list="bancos-datalist"
+               placeholder="Nome do banco…" autocomplete="off" style="flex:1">
+        <datalist id="bancos-datalist"></datalist>
+        <div id="banco-dot" class="banco-dot banco-dot-off" title="Sem banco selecionado"></div>
+      </div>
+      <button id="btn-conectar-banco" style="
+        width:100%; padding:5px; border-radius:5px; font-size:11px; font-weight:700;
+        background:rgba(79,195,247,.1); border:1px solid rgba(79,195,247,.25); color:var(--accent);
+        cursor:pointer; transition:background .15s;
+      ">⚡ Conectar</button>
+      <div style="font-size:10px;color:var(--muted);line-height:1.5">
+        Após conectar, clique nas feições da moldura no mapa para selecioná-las.
+      </div>
+    </div>
+
+    <!-- Escala — visível nos modos Arquivo e Banco -->
+    <div id="escala-shared" class="hidden" style="padding:0 12px 6px">
+      <div class="escala-row">
+        <span class="escala-label">Escala prod.:</span>
+        <select id="sel-escala" class="sb-sel" style="flex:1">
+          <option value="25000">1:25.000</option>
+          <option value="50000" selected>1:50.000</option>
+          <option value="100000">1:100.000</option>
+          <option value="250000">1:250.000</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Footer: controles + botão -->
+    <div id="sb-footer">
+      <div class="sb-quick-btns">
+        <button class="sb-quick-btn" id="btn-sel-todas">☑ Todas</button>
+        <button class="sb-quick-btn" id="btn-desel-todas">☐ Nenhuma</button>
+        <span id="sel-badge" style="font-size:11px;color:var(--accent);font-weight:700;margin-left:auto;align-self:center">0</span>
+      </div>
+      <div style="font-size:10px;color:var(--muted);text-align:center;padding:2px 0">
+        🔁 Sempre compara Topo × Orto
+      </div>
+      <button id="btn-calcular" disabled>⚡ Calcular MI</button>
+    </div>
+  </aside>
+
+  <!-- ── Mapa ── -->
+  <div id="map-wrap">
+    <div id="map-container"></div>
+
+    <!-- Hint inicial -->
+    <div id="map-hint">
+      <div class="map-hint-inner">
+        <div class="map-hint-icon">🗺</div>
+        <div class="map-hint-text">
+          Selecione um <strong>lote</strong> no painel à esquerda para carregar as UTs no mapa.<br>
+          <span style="font-size:11px;color:var(--muted)">Clique nos polígonos para selecionar.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading UTs no mapa -->
+    <div id="map-loading" class="hidden">
+      <div class="map-spin"></div>
+      <span id="map-loading-msg">Carregando UTs…</span>
+    </div>
+  </div>
+
+  <!-- ── Painel de Resultado (drawer) ── -->
+  <aside id="result-panel" class="closed">
+
+    <div id="result-panel-top">
+      <span class="rp-title">Resultado MI</span>
+      <button id="btn-close-result" title="Fechar resultado">✕</button>
+    </div>
+
+    <div id="result-panel-body">
+
+      <!-- Loading spinner -->
+      <div id="loading-wrap" class="hidden">
+        <div class="big-spin"></div>
+        <span id="loading-msg" style="font-size:12px">Calculando subfases…</span>
+      </div>
+
+      <!-- Resultado real (preenchido via JS) -->
+      <div id="result-content"></div>
+
+    </div>
+  </aside>
+
+</div><!-- #app -->
+
+<!-- Toasts -->
+<div id="toast-container"></div>
+
+<script>
+'use strict';
+
+// ── Cores por subfase ─────────────────────────────────────────────────────
+const SF_COLORS = {
+  ext_ferrovia:                    '#ef5350',
+  ext_hidrografia_altimetria:      '#29b6f6',
+  ext_toponimos:                   '#ab47bc',
+  ext_vias_deslocamento:           '#ff7043',
+  ext_elemento_hidrografico:       '#26c6da',
+  ext_area_sem_dados:              '#78909c',
+  ext_limites:                     '#ffca28',
+  ext_intersecao_hidro_transporte: '#42a5f5',
+  ext_area_edificada:              '#ff8a65',
+  ext_edificacao:                  '#ec407a',
+  ext_vegetacao:                   '#66bb6a',
+  ext_planimetria:                 '#ffa726',
+  verificacao_final:               '#26a69a',
+};
+function sfColor(k) { return SF_COLORS[k] || '#4fc3f7'; }
+
+// ── Estado ────────────────────────────────────────────────────────────────
+let _map          = null;
+let _mapUTLayer   = null;   // L.GeoJSON — UTs do SAP
+let _mapLayerById = {};     // ut_id → Leaflet layer (SAP)
+let _allUTs       = [];     // de /api/uts/lista
+let _utMetaById   = {};     // id → meta
+let _selectedIds  = new Set();
+let _lpIdToNome   = {};     // linha_producao_id → nome LP
+let _allLPs       = [];
+let _allLotes     = [];     // todos os lotes com linha_producao_id
+let _lastResult   = null;
+
+// Banco EDGV ativo
+let _bancoAtivo          = null;
+let _molduraLayer        = null;   // L.GeoJSON — feições individuais de aux_moldura_a
+let _molduraFeatures     = [];     // array de features do servidor
+let _molduraSelectedIdx  = new Set(); // índices selecionados
+let _molduraLayerByIdx   = {};     // idx → Leaflet layer
+
+// Modo
+let _modoArquivo        = false;
+let _modoBanco          = false;
+let _arquivoFeatures    = [];    // features parseadas { geojson, properties }
+let _arquivoLayerGroup  = null;  // L.GeoJSON para arquivo
+let _arquivoLayerById   = {};    // index → Leaflet layer
+let _arquivoSelectedIdx = new Set(); // índices selecionados
+
+// ── Estilos de polígono ───────────────────────────────────────────────────
+const ST_NORMAL   = { color:'#4fc3f7', weight:1.5, fillColor:'#4fc3f7', fillOpacity:0.10, opacity:1 };
+const ST_SELECTED = { color:'#66bb6a', weight:2.5, fillColor:'#66bb6a', fillOpacity:0.32, opacity:1 };
+const ST_HIDDEN   = { color:'transparent', weight:0, fillColor:'transparent', fillOpacity:0, opacity:0 };
+
+// Estilos para feições de moldura (aux_moldura_a)
+const ST_MOLDURA_NORMAL   = { color:'#ffa726', weight:1.5, fillColor:'#ffa726', fillOpacity:0.04, dashArray:'7,4', opacity:0.65 };
+const ST_MOLDURA_SELECTED = { color:'#ffa726', weight:2.5, fillColor:'#ffa726', fillOpacity:0.22, dashArray:null,  opacity:1    };
+
+// ── Utilitários ───────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function fmt(n) {
+  if (n == null || n === '') return '—';
+  return Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+}
+function lpNomeToKey(nome) {
+  const n = (nome || '').toLowerCase();
+  if (n.includes('orto') || n.includes('3orto') || n.includes('ortofoto')) return 'mapeamento_orto';
+  if (n.includes('topo') || n.includes('3topo') || n.includes('topografi')) return 'mapeamento_topo';
+  return 'mapeamento_topo'; // default
+}
+function abrevLP(nome) {
+  if (!nome) return '';
+  if (/orto/i.test(nome)) return 'Carta Orto';
+  if (/topo/i.test(nome)) return 'Topo 1.4';
+  const m = nome.match(/EDGV\s+[\d.]+\s+\S+(?:\s+[\d.]+)?/i);
+  return m ? m[0] : nome.slice(0, 22);
+}
+function isOrto(lpKey) { return lpKey === 'mapeamento_orto'; }
+
+// ── Toast system ──────────────────────────────────────────────────────────
+function showToast(msg, type = 'info', duration = 4000) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('toast-in'));
+  setTimeout(() => {
+    t.classList.remove('toast-in');
+    t.addEventListener('transitionend', () => t.remove(), { once: true });
+  }, duration);
+}
+
+// ── Inicializar Mapa Leaflet ──────────────────────────────────────────────
+function initMap() {
+  _map = L.map('map-container', {
+    center: [-14.2, -51.9],
+    zoom: 4,
+    preferCanvas: true,
+    zoomControl: true,
+  });
+
+  // Tiles dark (CartoDB Dark Matter)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 19,
+    subdomains: 'abcd',
+  }).addTo(_map);
+}
+
+// ── Banco EDGV: carregar lista, selecionar e mostrar moldura ─────────────
+async function carregarBancos() {
+  const inp      = document.getElementById('inp-banco');
+  const datalist = document.getElementById('bancos-datalist');
+  try {
+    const data   = await fetch('/api/databases').then(r => r.json());
+    const bancos = data.databases || [];
+    datalist.innerHTML = '';
+    bancos.forEach(db => {
+      const o = document.createElement('option');
+      o.value = db;
+      datalist.appendChild(o);
+    });
+    // Apenas preenche o campo com o banco ativo — NÃO carrega moldura automaticamente.
+    // O banco ativo do servidor pode ser insumos_oficiais (sem aux_moldura_a).
+    // O usuário deve clicar "Conectar" explicitamente para carregar a moldura.
+    if (data.ativo) {
+      inp.value = data.ativo;
+    }
+  } catch (e) {
+    console.warn('[bancos]', e.message);
+  }
+}
+
+async function selecionarBanco(db) {
+  const dot = document.getElementById('banco-dot');
+  // Spinner enquanto troca
+  dot.className = '';
+  dot.innerHTML = '<div class="banco-spin"></div>';
+
+  try {
+    const resp = await fetch('/api/databases/ativo', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ db }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      throw new Error(data.erro || `HTTP ${resp.status}`);
+    }
+
+    _bancoAtivo = db;
+    dot.innerHTML = '';
+    setBancoDot('ok');
+    // Limpa seleções anteriores de moldura antes de recarregar
+    _molduraSelectedIdx.clear();
+    atualizarBadge();
+    await carregarMoldura();
+    showToast(`Banco ativo: ${db}`, 'ok', 3000);
+  } catch (e) {
+    dot.innerHTML = '';
+    setBancoDot('err');
+    showToast('Erro ao conectar: ' + e.message, 'error');
+  }
+}
+
+function setBancoDot(estado) {
+  const dot = document.getElementById('banco-dot');
+  dot.className = `banco-dot banco-dot-${estado}`;
+  dot.title = estado === 'ok' ? `Conectado: ${_bancoAtivo}`
+            : estado === 'err' ? 'Erro de conexão'
+            : 'Sem banco selecionado';
+}
+
+async function carregarMoldura() {
+  // Remove camada anterior e limpa estado
+  if (_molduraLayer) { _map.removeLayer(_molduraLayer); _molduraLayer = null; }
+  _molduraFeatures    = [];
+  _molduraSelectedIdx = new Set();
+  _molduraLayerByIdx  = {};
+  atualizarBadge();
+
+  try {
+    const resp = await fetch('/api/moldura/features');
+    const fc   = await resp.json();
+    if (!resp.ok) {
+      showToast('Moldura indisponível: ' + (fc.erro || `HTTP ${resp.status}`), 'warn', 5000);
+      return;
+    }
+    if (!fc?.features?.length) {
+      showToast('Banco conectado, mas aux_moldura_a está vazia.', 'warn', 4000);
+      return;
+    }
+
+    _molduraFeatures = fc.features;
+
+    _molduraLayer = L.geoJSON(fc, {
+      style: () => ST_MOLDURA_NORMAL,
+      onEachFeature: (feature, layer) => {
+        const idx = feature.properties._idx;
+        _molduraLayerByIdx[idx] = layer;
+
+        layer.on('click', e => {
+          L.DomEvent.stopPropagation(e);
+          toggleMolduraFeat(idx);
+        });
+
+        // Tooltip com nome/mi/inom se disponível
+        const p    = feature.properties || {};
+        const nome = p.nome || p.mi || p.inom || p.id || String(idx);
+        layer.bindTooltip(String(nome), { sticky: true, opacity: 0.9, className: 'map-tooltip' });
+      },
+    }).addTo(_map);
+
+    const bounds = _molduraLayer.getBounds();
+    if (bounds.isValid()) _map.fitBounds(bounds, { padding: [20, 20] });
+
+  } catch (e) {
+    console.warn('[moldura]', e.message);
+    showToast('Erro ao carregar moldura: ' + e.message, 'error');
+  }
+}
+
+function toggleMolduraFeat(idx) {
+  // Selecionar moldura limpa seleções de outros modos e vice-versa
+  if (_molduraSelectedIdx.has(idx)) {
+    _molduraSelectedIdx.delete(idx);
+  } else {
+    _molduraSelectedIdx.add(idx);
+  }
+  const lyr = _molduraLayerByIdx[idx];
+  if (lyr) {
+    lyr.setStyle(_molduraSelectedIdx.has(idx) ? ST_MOLDURA_SELECTED : ST_MOLDURA_NORMAL);
+    if (_molduraSelectedIdx.has(idx)) lyr.bringToFront();
+  }
+  atualizarBadge();
+}
+
+// Conectar ao banco digitado/selecionado
+async function conectarBanco() {
+  const db = document.getElementById('inp-banco').value.trim();
+  if (!db) {
+    if (_molduraLayer) { _map.removeLayer(_molduraLayer); _molduraLayer = null; }
+    _bancoAtivo = null;
+    setBancoDot('off');
+    return;
+  }
+  await selecionarBanco(db);
+}
+
+document.getElementById('btn-conectar-banco').addEventListener('click', conectarBanco);
+
+// Enter no campo também conecta
+document.getElementById('inp-banco').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); conectarBanco(); }
+});
+
+// ── Carregar UTs no mapa para um lote ─────────────────────────────────────
+async function carregarMapaUTs(loteId) {
+  // Remove layer anterior
+  if (_mapUTLayer) {
+    _map.removeLayer(_mapUTLayer);
+    _mapUTLayer = null;
+    _mapLayerById = {};
+  }
+
+  const hint    = document.getElementById('map-hint');
+  const loading = document.getElementById('map-loading');
+
+  if (!loteId) {
+    hint.classList.remove('hidden');
+    return;
+  }
+
+  hint.classList.add('hidden');
+  loading.classList.remove('hidden');
+  document.getElementById('map-loading-msg').textContent = 'Carregando UTs…';
+
+  try {
+    const fc = await fetch(`/api/uts?lote_id=${encodeURIComponent(loteId)}`).then(r => r.json());
+    loading.classList.add('hidden');
+
+    if (!fc.features?.length) {
+      hint.classList.remove('hidden');
+      hint.querySelector('.map-hint-text').innerHTML =
+        'Nenhuma UT encontrada para este lote.';
+      return;
+    }
+
+    _mapUTLayer = L.geoJSON(fc, {
+      style: f => estiloUT(f.properties.id, computeVisibleUtIds()),
+      onEachFeature: (feature, layer) => {
+        const id = Number(feature.properties.id);
+        _mapLayerById[id] = layer;
+        layer.on('click', e => {
+          L.DomEvent.stopPropagation(e);
+          toggleUT(id);
+        });
+        layer.bindTooltip(feature.properties.nome || String(id), {
+          sticky: true,
+          opacity: 0.9,
+          className: 'map-tooltip',
+        });
+      },
+    }).addTo(_map);
+
+    const bounds = _mapUTLayer.getBounds();
+    if (bounds.isValid()) _map.fitBounds(bounds, { padding: [16, 16] });
+
+  } catch (e) {
+    loading.classList.add('hidden');
+    hint.classList.remove('hidden');
+    hint.querySelector('.map-hint-text').innerHTML =
+      'Erro ao carregar geometrias: ' + esc(e.message);
+  }
+}
+
+// ── Toggle seleção de UT ──────────────────────────────────────────────────
+function toggleUT(id) {
+  id = Number(id);
+  if (_selectedIds.has(id)) _selectedIds.delete(id);
+  else                       _selectedIds.add(id);
+
+  // Sincronizar estilo do polígono no mapa
+  const lyr = _mapLayerById[id];
+  if (lyr) {
+    lyr.setStyle(estiloUT(id));
+    if (_selectedIds.has(id)) lyr.bringToFront();
+  }
+
+  // Sincronizar checkbox na lista
+  const cb = document.querySelector(`.ut-item[data-id="${id}"] input[type="checkbox"]`);
+  if (cb) {
+    cb.checked = _selectedIds.has(id);
+    cb.closest('.ut-item')?.classList.toggle('selected', _selectedIds.has(id));
+  }
+
+  atualizarBadge();
+}
+
+// ── Atualizar badge de seleção ────────────────────────────────────────────
+function atualizarBadge() {
+  const n = _modoArquivo ? _arquivoSelectedIdx.size
+          : _modoBanco   ? _molduraSelectedIdx.size
+          : _selectedIds.size;
+  document.getElementById('sel-badge').textContent =
+    n === 0 ? '0 sel.' : `${n} sel.`;
+  document.getElementById('btn-calcular').disabled = n === 0;
+}
+
+// Computa o Set de IDs que passam nos filtros ativos.
+// Retorna null quando nenhum filtro está ativo (= todos visíveis).
+// Usa _allUTs (mesma fonte do renderUtLista) para garantir consistência.
+function computeVisibleUtIds() {
+  const sfFilter = document.getElementById('sel-subfase')?.value || '';
+  const lpFilter = document.getElementById('sel-lp')?.value     || '';
+  const search   = document.getElementById('inp-search')?.value.trim().toLowerCase() || '';
+
+  if (!sfFilter && !lpFilter && !search) return null; // sem filtro → todos visíveis
+
+  const visible = new Set();
+  _allUTs.forEach(u => {
+    if (search   && !(u.nome || '').toLowerCase().includes(search)) return;
+    if (sfFilter && u.subfase_nome !== sfFilter) return;
+    if (lpFilter) {
+      const lpNome = _lpIdToNome[u.linha_producao_id] || '';
+      if (lpNomeToKey(lpNome) !== lpFilter) return;
+    }
+    visible.add(Number(u.id)); // normaliza para number — evita mismatch string vs number do Set
+  });
+  return visible;
+}
+
+// ── Estilo de polígono — reflete seleção E filtros ativos ─────────────────
+// visibleSet: Set de IDs visíveis (null = todos visíveis)
+function estiloUT(id, visibleSet) {
+  id = Number(id);
+  if (visibleSet !== null && visibleSet !== undefined && !visibleSet.has(id)) return ST_HIDDEN;
+  return _selectedIds.has(id) ? ST_SELECTED : ST_NORMAL;
+}
+
+// Redesenha todos os polígonos do mapa respeitando os filtros ativos
+function atualizarEstiloMapa() {
+  if (!_mapUTLayer) return;
+  const visibleSet = computeVisibleUtIds();
+  _mapUTLayer.eachLayer(layer => {
+    const id = Number(layer.feature?.properties?.id);
+    layer.setStyle(estiloUT(id, visibleSet));
+  });
+}
+
+// ── Renderiza o select de lotes filtrado pela LP selecionada ──────────────
+function renderLoteSelect() {
+  const lpFilter = document.getElementById('sel-lp').value;
+  const selLote  = document.getElementById('sel-lote');
+  const prevVal  = selLote.value;
+
+  selLote.innerHTML = '<option value="">— Selecione um lote —</option>';
+
+  const lotesFiltrados = lpFilter
+    ? _allLotes.filter(l => {
+        const lpNome = _lpIdToNome[l.linha_producao_id] || '';
+        return lpNomeToKey(lpNome) === lpFilter;
+      })
+    : _allLotes;
+
+  lotesFiltrados.forEach(l => {
+    const o = document.createElement('option');
+    o.value = l.id; o.textContent = l.nome;
+    if (String(l.id) === prevVal) o.selected = true;
+    selLote.appendChild(o);
+  });
+}
+
+// ── Popula select de subfase baseado nas UTs carregadas ──────────────────
+// Usa o NOME como valor da opção (e para filtrar), pois diferentes LPs
+// podem ter a mesma subfase com IDs distintos no SAP.
+function renderSubfaseSelect() {
+  const sel      = document.getElementById('sel-subfase');
+  const prev     = sel.value;
+  const lpFilter = document.getElementById('sel-lp').value;
+  sel.innerHTML  = '<option value="">Todas as subfases</option>';
+
+  const seen    = new Set();
+  const entries = [];
+
+  // Respeita o filtro de LP ao construir as opções — só mostra subfases
+  // das UTs visíveis conforme a LP selecionada
+  _allUTs.forEach(u => {
+    if (lpFilter) {
+      const lpNome = _lpIdToNome[u.linha_producao_id] || '';
+      if (lpNomeToKey(lpNome) !== lpFilter) return;
+    }
+    const nome = u.subfase_nome;
+    if (nome && !seen.has(nome)) {
+      seen.add(nome);
+      entries.push(nome);
+    }
+  });
+
+  entries.sort((a, b) => a.localeCompare(b)).forEach(nome => {
+    const o = document.createElement('option');
+    o.value       = nome;
+    o.textContent = nome;
+    if (nome === prev) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+// ── Toggle de modo: SAP / Arquivo / Banco ──────────────────────────────────
+function setModo(modo) {
+  _modoArquivo = modo === 'arquivo';
+  _modoBanco   = modo === 'banco';
+
+  // Visibilidade dos painéis
+  document.getElementById('panel-sap')    .classList.toggle('hidden', modo !== 'sap');
+  document.getElementById('panel-arquivo').classList.toggle('hidden', modo !== 'arquivo');
+  document.getElementById('panel-banco')  .classList.toggle('hidden', modo !== 'banco');
+
+  // Escala visível para arquivo e banco
+  document.getElementById('escala-shared').classList.toggle('hidden', modo === 'sap');
+
+  // Destaque no botão ativo
+  document.querySelectorAll('.mode-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === modo)
+  );
+
+  // Limpar estado do modo anterior
+  _selectedIds.clear();
+  atualizarBadge();
+
+  if (_modoArquivo) {
+    // Esconder UTs do SAP no mapa
+    if (_mapUTLayer) { _map.removeLayer(_mapUTLayer); _mapUTLayer = null; _mapLayerById = {}; }
+    document.getElementById('map-hint').classList.add('hidden');
+  } else {
+    // Esconder arquivo no mapa ao sair do modo arquivo
+    if (_arquivoLayerGroup) { _map.removeLayer(_arquivoLayerGroup); _arquivoLayerGroup = null; _arquivoLayerById = {}; }
+    _arquivoFeatures = [];
+    _arquivoSelectedIdx.clear();
+    document.getElementById('arquivo-info').classList.add('hidden');
+    const drop = document.getElementById('arquivo-drop');
+    if (drop) drop.querySelector('.drop-zone-text').innerHTML =
+      'Arraste ou clique para carregar<br><strong>.zip</strong> (SHP zipado) ou <strong>.gpkg</strong>';
+    // Mostrar hint se SAP sem lote carregado
+    if (modo === 'sap' && !document.getElementById('sel-lote').value)
+      document.getElementById('map-hint').classList.remove('hidden');
+    else
+      document.getElementById('map-hint').classList.add('hidden');
+  }
+}
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => setModo(btn.dataset.mode));
+});
+
+// ── Upload e parse de arquivo geoespacial ─────────────────────────────────
+async function processarArquivo(file) {
+  if (!file) return;
+
+  const ext = (file.name.match(/\.(\w+)$/) || ['',  ''])[1].toLowerCase();
+  if (!['zip', 'gpkg'].includes(ext)) {
+    showToast('Formato não suportado. Use .zip (SHP) ou .gpkg', 'error'); return;
+  }
+
+  const drop = document.getElementById('arquivo-drop');
+  drop.querySelector('.drop-zone-text').innerHTML =
+    '<span style="color:var(--accent)">⏳ Processando…</span>';
+
+  const fd = new FormData();
+  fd.append('arquivo', file);
+
+  try {
+    const res  = await fetch('/api/arquivo/parse', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.erro) throw new Error(data.erro);
+
+    _arquivoFeatures    = data.features || [];
+    _arquivoSelectedIdx = new Set(_arquivoFeatures.map((_, i) => i)); // todos selecionados
+
+    // Info do arquivo
+    document.getElementById('arquivo-info-nome').textContent = file.name;
+    document.getElementById('arquivo-info-meta').textContent =
+      `${_arquivoFeatures.length} feição${_arquivoFeatures.length !== 1 ? 'ões' : ''} encontrada${_arquivoFeatures.length !== 1 ? 's' : ''}`;
+    document.getElementById('arquivo-info').classList.remove('hidden');
+
+    drop.querySelector('.drop-zone-text').innerHTML =
+      `<span style="color:var(--success)">✓ ${esc(file.name)}</span><br>
+       <span style="font-size:10px;color:var(--muted)">Clique para trocar</span>`;
+
+    // Mostrar no mapa
+    renderArquivoNoMapa();
+    atualizarBadge();
+
+  } catch (e) {
+    drop.querySelector('.drop-zone-text').innerHTML =
+      `<span style="color:var(--danger)">✗ Erro: ${esc(e.message)}</span><br>
+       <span style="font-size:10px;color:var(--muted)">Clique para tentar outro</span>`;
+    showToast('Erro ao processar arquivo: ' + e.message, 'error', 6000);
+  }
+}
+
+function renderArquivoNoMapa() {
+  if (_arquivoLayerGroup) {
+    _map.removeLayer(_arquivoLayerGroup);
+    _arquivoLayerGroup = null;
+    _arquivoLayerById  = {};
+  }
+  if (!_arquivoFeatures.length) return;
+
+  document.getElementById('map-hint').classList.add('hidden');
+
+  const fc = {
+    type: 'FeatureCollection',
+    features: _arquivoFeatures.map((f, i) => ({
+      type: 'Feature', geometry: f.geojson,
+      properties: { ...f.properties, _idx: i },
+    })),
+  };
+
+  _arquivoLayerGroup = L.geoJSON(fc, {
+    style: f => _arquivoSelectedIdx.has(f.properties._idx) ? ST_SELECTED : ST_NORMAL,
+    onEachFeature: (feature, layer) => {
+      const idx = feature.properties._idx;
+      _arquivoLayerById[idx] = layer;
+      layer.on('click', e => {
+        L.DomEvent.stopPropagation(e);
+        toggleArquivoFeature(idx);
+      });
+      const nomeProp = Object.keys(feature.properties).find(k =>
+        /nome|name|id$/i.test(k) && k !== '_idx'
+      );
+      if (nomeProp) layer.bindTooltip(String(feature.properties[nomeProp]), {
+        sticky: true, opacity: 0.9, className: 'map-tooltip',
+      });
+    },
+  }).addTo(_map);
+
+  const bounds = _arquivoLayerGroup.getBounds();
+  if (bounds.isValid()) _map.fitBounds(bounds, { padding: [16, 16] });
+}
+
+function toggleArquivoFeature(idx) {
+  if (_arquivoSelectedIdx.has(idx)) _arquivoSelectedIdx.delete(idx);
+  else                               _arquivoSelectedIdx.add(idx);
+
+  const lyr = _arquivoLayerById[idx];
+  if (lyr) {
+    lyr.setStyle(_arquivoSelectedIdx.has(idx) ? ST_SELECTED : ST_NORMAL);
+    if (_arquivoSelectedIdx.has(idx)) lyr.bringToFront();
+  }
+  atualizarBadge();
+}
+
+// ── Listeners do drop zone ─────────────────────────────────────────────────
+document.getElementById('inp-arquivo').addEventListener('change', e => {
+  if (e.target.files[0]) processarArquivo(e.target.files[0]);
+});
+const dropZone = document.getElementById('arquivo-drop');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) { document.getElementById('inp-arquivo').value = ''; processarArquivo(f); }
+});
+
+// ── Carregar filtros (LPs e lotes) ────────────────────────────────────────
+async function carregarFiltros() {
+  try {
+    const data = await fetch('/api/notas/filtros').then(r => r.json());
+    _allLPs   = data.lps   || [];
+    _allLotes = data.lotes || [];
+    _allLPs.forEach(lp => { _lpIdToNome[lp.id] = lp.nome; });
+
+    // Popula select de LP com as LPs únicas (ordem: Topo, Orto, resto)
+    const selLP  = document.getElementById('sel-lp');
+    const lpKeys = new Set();
+    _allLPs.forEach(lp => {
+      const key = lpNomeToKey(lp.nome);
+      if (!lpKeys.has(key)) {
+        lpKeys.add(key);
+        const o = document.createElement('option');
+        o.value       = key;
+        o.textContent = abrevLP(lp.nome);
+        selLP.appendChild(o);
+      }
+    });
+
+    // Popula lotes (todos, sem filtro inicial)
+    renderLoteSelect();
+  } catch (e) {
+    console.warn('Filtros não carregados:', e);
+  }
+}
+
+// ── Carregar lista de UTs (metadados) ─────────────────────────────────────
+async function carregarUTs(loteId = '') {
+  const lista = document.getElementById('ut-lista');
+  lista.innerHTML = Array(6).fill(
+    '<div class="skel-ut"><div class="skel-line skel-w70"></div><div class="skel-line skel-w40"></div></div>'
+  ).join('');
+
+  try {
+    const qs = new URLSearchParams();
+    if (loteId) qs.set('lote_id', loteId);
+    const data = await fetch(`/api/uts/lista?${qs}`).then(r => r.json());
+    _allUTs = Array.isArray(data) ? data : (data.uts || data.rows || []);
+
+    // Indexar por ID para acesso rápido
+    _utMetaById = {};
+    _allUTs.forEach(u => { _utMetaById[u.id] = u; });
+
+    renderSubfaseSelect();
+    renderUtLista();
+  } catch (e) {
+    lista.innerHTML = `<div class="ut-lista-empty">Erro: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Renderizar lista de UTs na sidebar ────────────────────────────────────
+function renderUtLista() {
+  const lista    = document.getElementById('ut-lista');
+  const search   = document.getElementById('inp-search').value.trim().toLowerCase();
+  const sfFilter = document.getElementById('sel-subfase').value;
+  const lpFilter = document.getElementById('sel-lp').value; // filtra pela LP selecionada
+
+  let uts = _allUTs;
+  if (search)   uts = uts.filter(u => (u.nome || '').toLowerCase().includes(search));
+  if (sfFilter) uts = uts.filter(u => u.subfase_nome === sfFilter);
+  if (lpFilter) uts = uts.filter(u => {
+    const lpNome = _lpIdToNome[u.linha_producao_id] || '';
+    return lpNomeToKey(lpNome) === lpFilter;
+  });
+
+  if (uts.length === 0) {
+    lista.innerHTML = '<div class="ut-lista-empty">Nenhuma UT encontrada.</div>';
+    return;
+  }
+
+  lista.innerHTML = uts.map(ut => {
+    const sel      = _selectedIds.has(ut.id);
+    const lpNome   = _lpIdToNome[ut.linha_producao_id] || '';
+    const lpAbrev  = abrevLP(lpNome);
+    return `
+      <div class="ut-item${sel ? ' selected' : ''}" data-id="${ut.id}">
+        <input type="checkbox" ${sel ? 'checked' : ''} data-id="${ut.id}">
+        <div class="ut-item-info">
+          <div class="ut-item-nome">${esc(ut.nome || ut.id)}</div>
+          ${lpAbrev ? `<div class="ut-item-meta">${esc(lpAbrev)}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Delegação de eventos: clicks na lista de UTs ──────────────────────────
+document.getElementById('ut-lista').addEventListener('click', e => {
+  const item = e.target.closest('.ut-item');
+  if (!item) return;
+  const id = parseInt(item.dataset.id);
+  if (!isNaN(id)) toggleUT(id);
+});
+
+// ── Selecionar / deselecionar todas (visíveis) ────────────────────────────
+document.getElementById('btn-sel-todas').addEventListener('click', () => {
+  if (_modoArquivo) {
+    _arquivoFeatures.forEach((_, i) => {
+      _arquivoSelectedIdx.add(i);
+      const lyr = _arquivoLayerById[i];
+      if (lyr) { lyr.setStyle(ST_SELECTED); lyr.bringToFront(); }
+    });
+    atualizarBadge();
+    return;
+  }
+  const search   = document.getElementById('inp-search').value.trim().toLowerCase();
+  const sfFilter = document.getElementById('sel-subfase').value;
+  _allUTs
+    .filter(u => (!search   || (u.nome || '').toLowerCase().includes(search))
+              && (!sfFilter || u.subfase_nome === sfFilter))
+    .forEach(u => {
+      _selectedIds.add(u.id);
+      const lyr = _mapLayerById[u.id];
+      if (lyr) { lyr.setStyle(ST_SELECTED); lyr.bringToFront(); }
+    });
+  renderUtLista();
+  atualizarBadge();
+});
+
+document.getElementById('btn-desel-todas').addEventListener('click', () => {
+  if (_modoArquivo) {
+    _arquivoFeatures.forEach((_, i) => {
+      _arquivoSelectedIdx.delete(i);
+      const lyr = _arquivoLayerById[i];
+      if (lyr) lyr.setStyle(ST_NORMAL);
+    });
+    atualizarBadge();
+    return;
+  }
+  _selectedIds.forEach(id => {
+    const lyr = _mapLayerById[id];
+    if (lyr) lyr.setStyle(ST_NORMAL);
+  });
+  _selectedIds.clear();
+  renderUtLista();
+  atualizarBadge();
+});
+
+// ── Eventos de filtro ─────────────────────────────────────────────────────
+document.getElementById('sel-lote').addEventListener('change', async () => {
+  const loteId = document.getElementById('sel-lote').value;
+  // Limpar seleção ao trocar lote
+  _selectedIds.clear();
+  atualizarBadge();
+  // Carregar lista + mapa em paralelo
+  await Promise.all([
+    carregarUTs(loteId),
+    carregarMapaUTs(loteId),
+  ]);
+});
+
+document.getElementById('inp-search').addEventListener('input', () => {
+  renderUtLista();
+  atualizarEstiloMapa();
+});
+
+document.getElementById('sel-subfase').addEventListener('change', () => {
+  renderUtLista();
+  atualizarEstiloMapa();
+});
+
+document.getElementById('sel-lp').addEventListener('change', () => {
+  // Ao mudar LP, rebobinar: reset lote, mapa e seleção
+  _selectedIds.clear();
+  atualizarBadge();
+  atualizarEstiloMapa();
+
+  // Repopula lotes filtrados pela LP escolhida
+  renderLoteSelect();
+
+  // Se o lote anterior ainda existe na nova lista, mantém; senão limpa mapa
+  if (!document.getElementById('sel-lote').value) {
+    // nenhum lote válido restou — limpa mapa e lista
+    if (_mapUTLayer) {
+      _map.removeLayer(_mapUTLayer);
+      _mapUTLayer = null;
+      _mapLayerById = {};
+    }
+    document.getElementById('ut-lista').innerHTML =
+      '<div class="ut-lista-empty">Selecione um lote para ver as UTs.</div>';
+    document.getElementById('map-hint').classList.remove('hidden');
+  } else {
+    // Lote ainda válido — re-renderiza lista com novo filtro de LP
+    renderSubfaseSelect();
+    renderUtLista();
+    atualizarEstiloMapa();
+  }
+});
+
+// ── Calcular MI ───────────────────────────────────────────────────────────
+document.getElementById('btn-calcular').addEventListener('click', async () => {
+  let payload;
+
+  if (_modoArquivo) {
+    // ── Modo Arquivo ──────────────────────────────────────────────────
+    if (_arquivoSelectedIdx.size === 0) return;
+    const selectedGeoms = [..._arquivoSelectedIdx]
+      .map(i => _arquivoFeatures[i]?.geojson)
+      .filter(Boolean);
+    if (!selectedGeoms.length) return;
+    const denomEscala = parseInt(document.getElementById('sel-escala').value) || 50000;
+    payload = {
+      geom_geojson:       selectedGeoms,
+      lp_keys:            ['mapeamento_topo', 'mapeamento_orto'],
+      denominador_escala: denomEscala,
+    };
+
+  } else if (_molduraSelectedIdx.size > 0) {
+    // ── Modo Moldura (feições de aux_moldura_a selecionadas no mapa) ──
+    const selectedGeoms = [..._molduraSelectedIdx]
+      .map(i => _molduraFeatures[i]?.geometry)
+      .filter(Boolean);
+    if (!selectedGeoms.length) return;
+
+    // Usa o seletor de escala manual da sidebar; como fallback lê da propriedade da feature
+    const selEscala = parseInt(document.getElementById('sel-escala').value);
+    const firstProps = _molduraFeatures[[..._molduraSelectedIdx][0]]?.properties || {};
+    const denomEscala = selEscala || Number(firstProps.denominador_escala || firstProps.escala || 50000);
+
+    payload = {
+      geom_geojson:       selectedGeoms,
+      lp_keys:            ['mapeamento_topo', 'mapeamento_orto'],
+      denominador_escala: denomEscala,
+    };
+
+  } else {
+    // ── Modo SAP ──────────────────────────────────────────────────────
+    if (_selectedIds.size === 0) return;
+    payload = {
+      ut_ids:  [..._selectedIds],
+      lp_keys: ['mapeamento_topo', 'mapeamento_orto'],
+    };
+  }
+
+  // Mensagem de loading contextual
+  const nSel = _modoArquivo ? _arquivoSelectedIdx.size : _selectedIds.size;
+  openResultPanel();
+  mostrarLoading(true, `Calculando ${nSel} feição${nSel > 1 ? 'ões' : ''} — todas as subfases…`);
+
+  try {
+    const data = await fetch('/api/calcular/mi', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    }).then(r => r.json());
+
+    if (data.erro) throw new Error(data.erro);
+
+    _lastResult = data;
+    mostrarLoading(false);
+    renderResultado(data);
+
+  } catch (e) {
+    mostrarLoading(false);
+    closeResultPanel();
+    showToast('Erro no cálculo: ' + e.message, 'error', 6000);
+  }
+});
+
+// ── Painel de resultado ───────────────────────────────────────────────────
+function openResultPanel() {
+  const p = document.getElementById('result-panel');
+  p.classList.remove('closed');
+  setTimeout(() => _map?.invalidateSize(), 320);
+}
+function closeResultPanel() {
+  const p = document.getElementById('result-panel');
+  p.classList.add('closed');
+  setTimeout(() => _map?.invalidateSize(), 320);
+  // Limpar conteúdo após fechar
+  setTimeout(() => {
+    document.getElementById('result-content').innerHTML = '';
+    mostrarLoading(false);
+  }, 350);
+}
+
+document.getElementById('btn-close-result').addEventListener('click', closeResultPanel);
+
+function mostrarLoading(on, msg = '') {
+  const lw = document.getElementById('loading-wrap');
+  const rc = document.getElementById('result-content');
+  lw.classList.toggle('hidden', !on);
+  rc.style.display = on ? 'none' : '';
+  if (msg) document.getElementById('loading-msg').textContent = msg;
+}
+
+// ── Helpers visuais ───────────────────────────────────────────────────────
+
+// Count-up animado (ease-out cubic)
+function animateCount(el, from, to, duration = 700) {
+  const start = performance.now();
+  const step  = ts => {
+    const p    = Math.min((ts - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (to - from) * ease).toLocaleString('pt-BR');
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// Abrevia nome de tabela EDGV para exibição no detalhe de camada
+function camadaAbrev(nome) {
+  return nome
+    .replace(/^(edgv|insumo_osm|insumos_oficiais)\./i, '')
+    .replace(/^(infra_|elemnat_|constr_|llp_|cobter_|delimitador_|centroide_|edicao_)/, '')
+    .replace(/__x__/, ' × ')
+    .replace(/__km_ref$|__n_ent$|__n_conf$/, '');
+}
+
+// Formata valor numérico com unidade de medida
+function fmtMetrica(valor, metrica) {
+  const v = Number(valor);
+  switch (metrica) {
+    case 'km':        return `${v.toLocaleString('pt-BR', {maximumFractionDigits:1})} km`;
+    case 'ha':        return `${v.toLocaleString('pt-BR', {maximumFractionDigits:1})} ha`;
+    case 'qtd':       return v.toLocaleString('pt-BR', {maximumFractionDigits:0});
+    case 'km_ref':    return `${v.toLocaleString('pt-BR', {maximumFractionDigits:1})} km`;
+    case 'dens_ent':  return `${v.toLocaleString('pt-BR', {maximumFractionDigits:2})} ent/km`;
+    case 'dens_conf': return `${v.toLocaleString('pt-BR', {maximumFractionDigits:2})} conf/km`;
+    default:          return `${v.toLocaleString('pt-BR', {maximumFractionDigits:2})}${metrica ? ' '+metrica : ''}`;
+  }
+}
+
+// ── Renderizar resultado ──────────────────────────────────────────────────
+function renderResultado(data) {
+  const content = document.getElementById('result-content');
+  content.innerHTML = '';
+  content.style.display = '';
+
+  // Cabeçalho com score cards
+  content.insertAdjacentHTML('beforeend', buildHeaderHTML(data));
+
+  // Animação count-up nos scores após inserir no DOM
+  (data.lps || []).forEach((lp, i) => {
+    const el = content.querySelector(`.score-num-${i}`);
+    if (el) animateCount(el, 0, lp.total || 0, 750);
+  });
+
+  // Tabela
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'res-table-wrap';
+  content.appendChild(tableWrap);
+  buildTabela(tableWrap, data);
+
+  // Gráfico
+  const chartStr = buildGrafico(data);
+  if (chartStr) content.insertAdjacentHTML('beforeend', chartStr);
+
+  // Legenda
+  const legStr = buildLegenda(data);
+  if (legStr) content.insertAdjacentHTML('beforeend', legStr);
+}
+
+// ── Cabeçalho: stat bar + score cards ────────────────────────────────────
+function buildHeaderHTML(data) {
+  const lps    = data.lps || [];
+  const nUTs   = data.uts?.length ?? 0;
+  const escala = data.escala ? `1:${Number(data.escala).toLocaleString('pt-BR')}` : '—';
+  const area   = data.area_km2 ? `${fmt(data.area_km2)} km²` : null;
+
+  // Stat bar
+  const statDivs = [
+    `<div class="res-stat-item"><span class="res-stat-val">${nUTs}</span><span class="res-stat-lbl">UTs</span></div>`,
+    `<div class="res-stat-div"></div>`,
+    `<div class="res-stat-item"><span class="res-stat-val">${escala}</span><span class="res-stat-lbl">Escala</span></div>`,
+  ];
+  if (area) statDivs.push(
+    `<div class="res-stat-div"></div>`,
+    `<div class="res-stat-item"><span class="res-stat-val">${area}</span><span class="res-stat-lbl">Área</span></div>`
+  );
+
+  // Score cards por LP
+  const cards = lps.map((lp, i) => {
+    const orto = isOrto(lp.key);
+    return `<div class="res-score-card">
+      <span class="res-score-badge ${orto ? 'badge-orto' : 'badge-topo'}">${esc(abrevLP(lp.nome))}</span>
+      <span class="res-score-num ${orto ? 'orto' : 'topo'} score-num-${i}">0</span>
+      <span class="res-score-pts-lbl">pontos totais</span>
+    </div>`;
+  });
+
+  // Bloco "vs" com delta percentual (apenas se 2 LPs)
+  let vsBlock = '';
+  if (lps.length >= 2) {
+    const t0 = lps[0].total || 0, t1 = lps[1].total || 0;
+    const delta = t1 - t0;
+    const pct   = t0 > 0 ? Math.round((delta / t0) * 100) : null;
+    const sign  = pct != null && pct > 0 ? '+' : '';
+    const cls   = delta > 0 ? 'pos' : delta < 0 ? 'neg' : 'neu';
+    const txt   = pct != null ? `${sign}${pct}%` : '—';
+    vsBlock = `<div class="res-score-vs">
+      <span class="vs-label">vs</span>
+      <span class="vs-delta ${cls}">${txt}</span>
+    </div>`;
+    // Intercalar vs entre os dois cards
+    return `
+      <div class="res-stat-bar">${statDivs.join('')}</div>
+      <div class="res-score-row">${cards[0]}${vsBlock}${cards[1]}</div>`;
+  }
+
+  return `
+    <div class="res-stat-bar">${statDivs.join('')}</div>
+    <div class="res-score-row">${cards.join('')}</div>`;
+}
+
+// ── Tabela comparativa com mini-barras ────────────────────────────────────
+function buildTabela(wrap, data) {
+  const lps     = data.lps || [];
+  const nLPs    = lps.length;
+  const hasComp = nLPs >= 2;
+  const sfByLP  = lps.map(lp => new Set(Object.keys(lp.subfases || {})));
+
+  // Max global para escala das barras (cross-LP, cross-subfase)
+  let globalMax = 0;
+  lps.forEach(lp => Object.values(lp.subfases || {}).forEach(sf => {
+    if ((sf.pts || 0) > globalMax) globalMax = sf.pts || 0;
+  }));
+
+  // Ordem canônica de subfases
+  const ORDER = [
+    'ext_ferrovia','ext_hidrografia_altimetria','ext_toponimos','ext_vias_deslocamento',
+    'ext_elemento_hidrografico','ext_area_sem_dados','ext_limites',
+    'ext_intersecao_hidro_transporte','ext_area_edificada','ext_edificacao',
+    'ext_vegetacao','ext_planimetria','verificacao_final',
+  ];
+  const allKeys = [...new Set([
+    ...ORDER.filter(k => lps.some(lp => lp.subfases?.[k])),
+    ...lps.flatMap(lp => Object.keys(lp.subfases || {})),
+  ])];
+
+  // Cabeçalhos
+  const thLPs   = lps.map(lp =>
+    `<th class="th-pts" style="color:${isOrto(lp.key)?'#ffa726':'var(--accent)'}">${esc(abrevLP(lp.nome))}</th>`
+  ).join('');
+  const thDelta = hasComp ? '<th class="th-delta">Δ</th>' : '';
+
+  // Linhas
+  const rows = allKeys.map(sfKey => {
+    const nome   = lps.map(lp => lp.subfases?.[sfKey]?.nome).find(Boolean) || sfKey;
+    const inLP   = lps.map((_, i) => sfByLP[i].has(sfKey));
+    const numPts = lps.map((lp, i) => inLP[i] ? Number(lp.subfases?.[sfKey]?.pts ?? 0) : null);
+    const hasData = numPts.some(p => p != null && p > 0);
+
+    // Células de pontos com barra proporcional de fundo
+    const ptsTds = numPts.map((p, i) => {
+      if (!inLP[i]) return `<td class="td-na"><div class="tdi">n/a</div></td>`;
+      if (!p)       return `<td class="td-pts-zero"><div class="tdi">—</div></td>`;
+      const pct   = globalMax > 0 ? Math.min(100, (p / globalMax) * 100) : 0;
+      const color = isOrto(lps[i].key) ? 'rgba(255,167,38,.15)' : 'rgba(79,195,247,.12)';
+      return `<td class="td-pts"><div class="tdi">
+        <div class="pts-bg" style="width:${pct.toFixed(1)}%;background:${color}"></div>
+        <span class="pts-val">${fmt(p)}</span>
+      </div></td>`;
+    }).join('');
+
+    // Célula delta
+    let deltaTd = '';
+    if (hasComp) {
+      const p0 = numPts[0], p1 = numPts[1];
+      if (p0 == null || p1 == null || (p0 === 0 && p1 === 0)) {
+        deltaTd = `<td class="td-dneu"><div class="tdi">—</div></td>`;
+      } else {
+        const d   = p1 - p0;
+        const pct = p0 > 0 ? Math.round((d / p0) * 100) : null;
+        const sig = pct != null && pct > 0 ? '+' : '';
+        const cls = d > 0 ? 'td-dpos' : d < 0 ? 'td-dneg' : 'td-dneu';
+        deltaTd   = `<td class="${cls}"><div class="tdi">${pct != null ? `${sig}${pct}%` : '∞'}</div></td>`;
+      }
+    }
+
+    // Botão expandir
+    const detId  = `det-${sfKey}`;
+    const expBtn = hasData
+      ? `<span class="sf-expand" data-target="${detId}">▶</span>`
+      : `<span style="width:16px;display:inline-block;flex-shrink:0"></span>`;
+
+    // Blocos de detalhe por LP (grid de 2 colunas)
+    const detBlocks = lps.map((lp, li) => {
+      const cams = (lp.subfases?.[sfKey]?.por_camada || []);
+      if (!cams.length) return '';
+      const orto  = isOrto(lp.key);
+      const color = orto ? '#ffa726' : 'var(--accent)';
+      const camRows = cams.map(c => `
+        <div class="det-cam-row">
+          <span class="det-cam-name" title="${esc(c.camada)}">${esc(camadaAbrev(c.camada))}</span>
+          <span class="det-cam-val">${fmtMetrica(c.valor, c.metrica)}</span>
+          <span class="det-cam-pts">${fmt(c.pts)}<small> pts</small></span>
+        </div>`).join('');
+      return `<div class="det-lp-block">
+        <div class="det-lp-hd" style="color:${color}">${esc(abrevLP(lp.nome))}</div>
+        ${camRows}
+      </div>`;
+    }).filter(Boolean).join('');
+
+    const colSpan  = 1 + nLPs + (hasComp ? 1 : 0);
+    const detailHtml = hasData && detBlocks
+      ? `<tr id="${detId}" class="detail-row hidden">
+           <td colspan="${colSpan}"><div class="detail-inner">${detBlocks}</div></td>
+         </tr>`
+      : '';
+
+    return `<tr class="sf-row">
+      <td class="td-sf"><div class="tdi">
+        <span class="sf-dot" style="background:${sfColor(sfKey)}"></span>
+        <span class="sf-name-text" title="${esc(nome)}">${esc(nome)}</span>
+        ${expBtn}
+      </div></td>
+      ${ptsTds}${deltaTd}
+    </tr>${detailHtml}`;
+  }).join('');
+
+  // Linha de totais
+  const totalTds = lps.map(lp => {
+    const color = isOrto(lp.key) ? '#ffa726' : 'var(--accent)';
+    return `<td class="td-pts total"><div class="tdi" style="color:${color}">${fmt(lp.total)}</div></td>`;
+  }).join('');
+  let totalDeltaTd = '';
+  if (hasComp) {
+    const t0 = lps[0].total || 0, t1 = lps[1].total || 0;
+    const d   = t1 - t0;
+    const pct = t0 > 0 ? Math.round((d / t0) * 100) : null;
+    const sig = pct != null && pct > 0 ? '+' : '';
+    const cls = d > 0 ? 'td-dpos' : d < 0 ? 'td-dneg' : 'td-dneu';
+    totalDeltaTd = `<td class="${cls}"><div class="tdi" style="font-size:11px">${pct != null ? `${sig}${pct}%` : '—'}</div></td>`;
+  }
+
+  wrap.innerHTML = `
+    <div class="res-tbl-toolbar">
+      <span class="res-tbl-title">Subfases por LP</span>
+      <div class="res-tbl-btns">
+        <button class="btn-xs green" id="btn-exp-csv">⬇ CSV</button>
+        <button class="btn-xs"       id="btn-exp-json">⬇ JSON</button>
+      </div>
+    </div>
+    <div class="tbl-scroll-wrap">
+      <table class="mi-tbl">
+        <thead><tr>
+          <th>Subfase</th>${thLPs}${thDelta}
+        </tr></thead>
+        <tbody>
+          ${rows}
+          <tr class="total-row">
+            <td class="td-sf"><div class="tdi">
+              <span class="sf-name-text" style="font-weight:800;color:var(--text)">TOTAL</span>
+            </div></td>
+            ${totalTds}${totalDeltaTd}
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+
+  // Expand / colapsar detalhe
+  wrap.querySelectorAll('.sf-expand').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const t = document.getElementById(btn.dataset.target);
+      if (!t) return;
+      const hidden = t.classList.toggle('hidden');
+      btn.textContent = hidden ? '▶' : '▼';
+    });
+  });
+
+  wrap.querySelector('#btn-exp-csv')?.addEventListener('click',  () => exportarCSV(_lastResult));
+  wrap.querySelector('#btn-exp-json')?.addEventListener('click', () => exportarJSON(_lastResult));
+}
+
+// ── Gráfico de barras empilhadas (SVG) ────────────────────────────────────
+function buildGrafico(data) {
+  const lps = data.lps || [];
+  if (!lps.length) return '';
+
+  const maxTotal = Math.max(...lps.map(lp => lp.total || 0));
+  if (maxTotal === 0) return '';
+
+  // Barras mais largas para o painel 520px
+  const BAR_W = 100, BAR_H = 180, GAP = 64, PAD_L = 50, PAD_B = 30, PAD_T = 14;
+  const svgW  = PAD_L + lps.length * BAR_W + (lps.length - 1) * GAP + 14;
+  const svgH  = BAR_H + PAD_B + PAD_T;
+
+  const ORDER = [
+    'ext_ferrovia','ext_hidrografia_altimetria','ext_toponimos','ext_vias_deslocamento',
+    'ext_elemento_hidrografico','ext_area_sem_dados','ext_limites',
+    'ext_intersecao_hidro_transporte','ext_area_edificada','ext_edificacao',
+    'ext_vegetacao','ext_planimetria','verificacao_final',
+  ];
+  const activeKeys = [...new Set([
+    ...ORDER.filter(k => lps.some(lp => (lp.subfases?.[k]?.pts || 0) > 0)),
+    ...lps.flatMap(lp => Object.keys(lp.subfases || {})).filter(k => lps.some(lp => (lp.subfases?.[k]?.pts || 0) > 0)),
+  ])];
+
+  let bars = '';
+  lps.forEach((lp, i) => {
+    const x = PAD_L + i * (BAR_W + GAP);
+    let yAcc = 0;
+
+    activeKeys.forEach(sfKey => {
+      const pts = lp.subfases?.[sfKey]?.pts || 0;
+      if (!pts) return;
+      const h    = (pts / maxTotal) * BAR_H;
+      const yPos = PAD_T + BAR_H - yAcc - h;
+      yAcc += h;
+      bars += `<rect x="${x}" y="${yPos.toFixed(1)}" width="${BAR_W}" height="${Math.max(h, 0.8).toFixed(1)}"
+        fill="${sfColor(sfKey)}" opacity="0.85" rx="2">
+        <title>${esc(lp.subfases[sfKey]?.nome || sfKey)}: ${fmt(pts)} pts</title>
+      </rect>`;
+    });
+
+    // Label LP abaixo da barra
+    const label = abrevLP(lp.nome);
+    bars += `<text x="${x + BAR_W / 2}" y="${PAD_T + BAR_H + 16}" text-anchor="middle"
+      font-size="10" fill="#7a9ab0" font-weight="600">${esc(label)}</text>`;
+
+    // Total acima da barra
+    if (lp.total > 0) {
+      const topY = PAD_T + BAR_H - (lp.total / maxTotal) * BAR_H - 6;
+      bars += `<text x="${x + BAR_W / 2}" y="${topY.toFixed(1)}"
+        text-anchor="middle" font-size="11" font-weight="800" fill="#e0eaf2">${fmt(lp.total)}</text>`;
+    }
+  });
+
+  // Linhas de grade horizontais com labels
+  let grid = '';
+  [0, 0.25, 0.5, 0.75, 1].forEach(p => {
+    const y    = PAD_T + BAR_H - p * BAR_H;
+    const v    = Math.round(p * maxTotal);
+    const dash = p > 0 ? '3,4' : '';
+    const x2   = PAD_L + lps.length * BAR_W + (lps.length - 1) * GAP;
+    grid += `
+      <line x1="${PAD_L}" y1="${y}" x2="${x2}" y2="${y}"
+        stroke="#1a3358" stroke-width="1" stroke-dasharray="${dash}"/>
+      <text x="${PAD_L - 6}" y="${y + 3.5}" text-anchor="end"
+        font-size="9" fill="#546e7a">${v.toLocaleString('pt-BR')}</text>`;
+  });
+
+  return `
+    <div class="res-chart-wrap">
+      <div class="chart-title">Distribuição por subfase</div>
+      <div class="chart-svg-wrap">
+        <svg class="stacked-bar" viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}">
+          ${grid}${bars}
+        </svg>
+      </div>
+    </div>`;
+}
+
+// ── Legenda de cores ──────────────────────────────────────────────────────
+function buildLegenda(data) {
+  const lps    = data.lps || [];
+  const active = [...new Set(
+    lps.flatMap(lp => Object.keys(lp.subfases || {}))
+  )].filter(k => lps.some(lp => (lp.subfases?.[k]?.pts || 0) > 0));
+
+  if (!active.length) return '';
+
+  const items = active.map(k => {
+    const nome = lps.map(lp => lp.subfases?.[k]?.nome).find(Boolean) || k;
+    return `<div class="leg-item">
+      <div class="leg-dot" style="background:${sfColor(k)}"></div>
+      <span>${esc(nome)}</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="res-legend">${items}</div>`;
+}
+
+// ── Exportar CSV ──────────────────────────────────────────────────────────
+function exportarCSV(data) {
+  if (!data) return;
+  const lps = data.lps || [];
+  if (!lps.length) return;
+
+  const lpHeaders = lps.map(lp => abrevLP(lp.nome));
+  const header    = ['Subfase', ...lpHeaders, ...(lps.length >= 2 ? ['Δ (%)'] : [])].join(';');
+
+  const allKeys = [...new Set(lps.flatMap(lp => Object.keys(lp.subfases || {})))];
+  const rows = allKeys.map(k => {
+    const nome = lps.map(lp => lp.subfases?.[k]?.nome).find(Boolean) || k;
+    const pts  = lps.map(lp => lp.subfases?.[k]?.pts ?? 0);
+    let delta  = '';
+    if (lps.length >= 2 && pts[0] > 0)
+      delta = ((pts[1] - pts[0]) / pts[0] * 100).toFixed(1) + '%';
+    return [nome, ...pts.map(p => Number(p).toFixed(1)), delta].join(';');
+  });
+  const total = ['TOTAL', ...lps.map(lp => (lp.total || 0).toFixed(1))].join(';');
+
+  const csv  = '﻿' + [header, ...rows, total].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'mi_comparacao.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportarJSON(data) {
+  if (!data) return;
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'mi_resultado.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Inicialização ─────────────────────────────────────────────────────────
+(async () => {
+  initMap();
+  await Promise.all([
+    carregarBancos(),
+    carregarFiltros(),
+  ]);
+  atualizarBadge();
+})();
+</script>
+</body>
+</html>
