@@ -512,7 +512,13 @@ body {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .auto-label { font-size: 9px; color: #455a64; width: 100%; text-transform: uppercase; letter-spacing: 0.5px; }
-.subfase-nome { font-size: 12px; font-weight: 600; color: var(--c-accent); flex: 1; }
+.subfase-auto-row { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.subfase-lp-chip {
+  font-size: 10px; font-weight: 700; color: #fff;
+  background: rgba(102,187,106,0.25); border: 1px solid rgba(102,187,106,0.45);
+  border-radius: 4px; padding: 1px 6px; white-space: nowrap; flex-shrink: 0;
+}
+.subfase-nome { font-size: 12px; font-weight: 600; color: var(--c-accent); flex: 1; min-width: 0; }
 
 /* ── UT Preview ── */
 .ut-preview {

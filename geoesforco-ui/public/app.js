@@ -503,9 +503,15 @@ document.getElementById('btn-trocar-subfase').addEventListener('click', () => {
   updateCalcBtn();
 });
 
-function showSubfaseAuto(key, nome) {
+function showSubfaseAuto(key, nome, lpNome) {
   sfSapInfo.classList.remove('hidden');
   sfSapNome.textContent = nome;
+  // Chip de LP — mostra sigla/nome da linha de produção
+  const lpChip = document.getElementById('subfase-sap-lp');
+  if (lpChip) {
+    if (lpNome) { lpChip.textContent = lpNome; lpChip.classList.remove('hidden'); }
+    else        { lpChip.textContent = '';      lpChip.classList.add('hidden');    }
+  }
   sfSelector.classList.add('hidden');
   currentSubfaseKey = key;
   selSubfase.value = key || '';
@@ -1038,10 +1044,8 @@ async function selecionarUt(id) {
     showDifRow(id, currentDificuldade);
 
     // Sincroniza Projeto + LP da UT selecionada (sem disparar onFilterComMapa)
-    if ((meta?.projeto_id        && meta.projeto_id        !== currentProjetoId) ||
-        (meta?.linha_producao_id && meta.linha_producao_id !== currentLpId)) {
-      setCurrentProjetoLp(meta?.projeto_id, meta?.linha_producao_id);
-    }
+    // Sempre chama para garantir que selectLpManual e filterLp reflitam a LP da UT
+    setCurrentProjetoLp(meta?.projeto_id ?? currentProjetoId, meta?.linha_producao_id ?? currentLpId);
 
     utLayer.clearLayers().addData(feature);
     if (utLayer.getLayers().length) map.fitBounds(utLayer.getBounds(), { padding: [40, 40] });
@@ -1064,7 +1068,22 @@ async function selecionarUt(id) {
       Escala:  meta?.denominador_escala ? `1:${meta.denominador_escala.toLocaleString('pt-BR')}` : null,
     });
 
-    if (meta?.subfase_key) showSubfaseAuto(meta.subfase_key, meta.subfase_nome);
+    const lpNome = lpMeta?.nome_abrev || lpMeta?.nome || null;
+
+    // Resolve subfase: prefere key do mapeamento; fallback → casa pelo nome (ignora acentos/case)
+    let autoKey  = meta?.subfase_key ?? null;
+    let autoNome = meta?.subfase_nome ?? null;
+    if (!autoKey && autoNome) {
+      const norm = s => (s || '').toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+      const n = norm(autoNome);
+      const found = allSubfases.find(s => norm(s.nome) === n)
+                 ?? allSubfases.find(s => n.includes(norm(s.nome)))
+                 ?? allSubfases.find(s => norm(s.nome).includes(n));
+      if (found) { autoKey = found.key; autoNome = found.nome; }
+    }
+
+    if (autoKey) showSubfaseAuto(autoKey, autoNome, lpNome);
     else { showSubfaseSelector(true); sapStatus.textContent = 'Subfase não mapeada — selecione manualmente.'; }
 
     sapStatus.textContent = '';
