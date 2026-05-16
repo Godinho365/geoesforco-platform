@@ -450,6 +450,59 @@ td.td-pts.total .tdi, td.td-pts-zero.total .tdi { font-size: 12px; font-weight: 
 .det-cam-pts  { white-space: nowrap; font-weight: 700; color: var(--text); flex-shrink: 0; min-width: 46px; text-align: right; }
 .det-cam-pts small { font-weight: 400; color: var(--muted); font-size: 8.5px; }
 
+/* ── Refinamento de subfase ── */
+.th-refine  { width: 30px; }
+.td-refine  { width: 30px; text-align: center; vertical-align: middle; }
+.btn-refine {
+  background: none; border: 1px solid transparent;
+  border-radius: 4px; color: var(--muted); font-size: 11px;
+  padding: 2px 5px; cursor: pointer; transition: all .15s; line-height: 1;
+}
+.btn-refine:hover  { border-color: var(--accent); color: var(--accent); }
+.btn-refine.active { border-color: var(--warn); color: var(--warn); background: rgba(255,167,38,.08); }
+.refine-row td { padding: 0 !important; }
+.refine-inner {
+  background: rgba(8,15,30,.96);
+  border-left: 3px solid var(--warn);
+  padding: 9px 14px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.refine-label { color: var(--muted); font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+.refine-banco-inp {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); padding: 4px 8px; font-size: 12px; width: 230px;
+}
+.refine-banco-inp:focus { outline: none; border-color: var(--accent); }
+.refine-lp-sel {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); padding: 4px 6px; font-size: 12px; flex-shrink: 0;
+}
+.refine-btn-test {
+  background: rgba(255,167,38,.12); border: 1px solid rgba(255,167,38,.35);
+  border-radius: 4px; color: var(--warn); font-size: 11px; font-weight: 600;
+  padding: 4px 10px; cursor: pointer; white-space: nowrap; transition: background .15s;
+}
+.refine-btn-test:hover    { background: rgba(255,167,38,.22); }
+.refine-btn-test:disabled { opacity: .45; cursor: default; }
+.refine-result { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.refine-old    { color: var(--muted); text-decoration: line-through; }
+.refine-arrow  { color: var(--muted); font-size: 10px; }
+.refine-new    { font-weight: 700; color: var(--success); }
+.refine-new.worse { color: var(--warn); }
+.refine-btn-accept {
+  background: rgba(102,187,106,.12); border: 1px solid rgba(102,187,106,.35);
+  border-radius: 4px; color: var(--success); font-size: 11px; font-weight: 600;
+  padding: 3px 9px; cursor: pointer; transition: background .15s;
+}
+.refine-btn-accept:hover { background: rgba(102,187,106,.22); }
+.refine-btn-cancel {
+  background: none; border: 1px solid var(--border);
+  border-radius: 4px; color: var(--muted); font-size: 11px;
+  padding: 3px 9px; cursor: pointer; transition: all .15s;
+}
+.refine-btn-cancel:hover { border-color: var(--danger); color: var(--danger); }
+.refine-avisos { font-size: 10px; color: var(--warn); }
+
 /* Mode toggle */
 .mode-toggle {
   display: flex; gap: 4px; padding: 8px 12px 6px;
@@ -760,6 +813,7 @@ let _lpIdToNome   = {};     // linha_producao_id → nome LP
 let _allLPs       = [];
 let _allLotes     = [];     // todos os lotes com linha_producao_id
 let _lastResult   = null;
+let _lastPayload  = null;   // payload enviado ao /api/calcular/mi (para reusar no refine)
 
 // Banco EDGV ativo
 let _bancoAtivo          = null;
@@ -1587,7 +1641,8 @@ document.getElementById('btn-calcular').addEventListener('click', async () => {
 
     if (data.erro) throw new Error(data.erro);
 
-    _lastResult = data;
+    _lastResult  = data;
+    _lastPayload = payload;   // guarda para reusar no refine
     mostrarLoading(false);
     renderResultado(data);
 
@@ -1692,6 +1747,25 @@ function renderResultado(data) {
   if (legStr) content.insertAdjacentHTML('beforeend', legStr);
 }
 
+// ── Refinamento de subfase ────────────────────────────────────────────────
+// Aceita o resultado do refine e atualiza _lastResult + re-renderiza
+function aceitarRefine(sfKey, lpKey, newPts, newPorCamada, banco) {
+  if (!_lastResult) return;
+  const lp = _lastResult.lps.find(l => l.key === lpKey);
+  if (!lp || !lp.subfases[sfKey]) return;
+
+  const nomeSf = lp.subfases[sfKey].nome || sfKey;
+  lp.subfases[sfKey].pts       = newPts;
+  lp.subfases[sfKey].por_camada = newPorCamada || [];
+  lp.subfases[sfKey]._refinado  = banco;  // marca proveniência
+
+  // Recalcula total da LP
+  lp.total = +Object.values(lp.subfases).reduce((s, v) => s + (v.pts || 0), 0).toFixed(2);
+
+  renderResultado(_lastResult);
+  showToast(`Refinamento aceito: "${nomeSf}" → ${fmt(newPts)} pts (banco ${banco})`, 'ok', 4000);
+}
+
 // ── Cabeçalho: stat bar + score cards ────────────────────────────────────
 function buildHeaderHTML(data) {
   const lps    = data.lps || [];
@@ -1773,7 +1847,8 @@ function buildTabela(wrap, data) {
   const thLPs   = lps.map(lp =>
     `<th class="th-pts" style="color:${isOrto(lp.key)?'#ffa726':'var(--accent)'}">${esc(abrevLP(lp.nome))}</th>`
   ).join('');
-  const thDelta = hasComp ? '<th class="th-delta">Δ</th>' : '';
+  const thDelta  = hasComp ? '<th class="th-delta">Δ</th>' : '';
+  const thRefine = '<th class="th-refine" title="Refinar subfase com outro banco"></th>';
 
   // Linhas
   const rows = allKeys.map(sfKey => {
@@ -1834,20 +1909,46 @@ function buildTabela(wrap, data) {
     }).filter(Boolean).join('');
 
     const colSpan  = 1 + nLPs + (hasComp ? 1 : 0);
+    const colTotal = colSpan + 1; // +1 para a coluna de refine
     const detailHtml = hasData && detBlocks
       ? `<tr id="${detId}" class="detail-row hidden">
-           <td colspan="${colSpan}"><div class="detail-inner">${detBlocks}</div></td>
+           <td colspan="${colTotal}"><div class="detail-inner">${detBlocks}</div></td>
          </tr>`
       : '';
+
+    // Seletor de LP para o painel de refinamento
+    const lpOptsSel = lps.map(lp =>
+      `<option value="${esc(lp.key)}">${esc(abrevLP(lp.nome))}</option>`
+    ).join('');
+    // Indicador de subfase já refinada
+    const refinadaLP    = lps.find(l => l.subfases?.[sfKey]?._refinado);
+    const refinadaBancoStr = refinadaLP?.subfases?.[sfKey]?._refinado || '';
+    const refinadaBadge = refinadaLP
+      ? `<span style="font-size:10px;color:var(--warn);margin-left:4px" title="Refinado com ${esc(refinadaBancoStr)}">✦</span>`
+      : '';
+
+    const refineRowHtml = `<tr id="refine-row-${sfKey}" class="refine-row hidden">
+      <td colspan="${colTotal}"><div class="refine-inner">
+        <span class="refine-label">🔧 Refinar com banco:</span>
+        <input class="refine-banco-inp" list="bancos-datalist" placeholder="nome do banco…" id="refine-banco-${sfKey}">
+        ${nLPs > 1
+          ? `<select class="refine-lp-sel" id="refine-lp-${sfKey}">${lpOptsSel}</select>`
+          : `<input type="hidden" id="refine-lp-${sfKey}" value="${lps[0]?.key || ''}">`
+        }
+        <button class="refine-btn-test" id="refine-calc-${sfKey}" data-sfkey="${sfKey}">▶ Testar</button>
+        <div class="refine-result" id="refine-result-${sfKey}"></div>
+      </div></td>
+    </tr>`;
 
     return `<tr class="sf-row">
       <td class="td-sf"><div class="tdi">
         <span class="sf-dot" style="background:${sfColor(sfKey)}"></span>
         <span class="sf-name-text" title="${esc(nome)}">${esc(nome)}</span>
-        ${expBtn}
+        ${expBtn}${refinadaBadge}
       </div></td>
       ${ptsTds}${deltaTd}
-    </tr>${detailHtml}`;
+      <td class="td-refine"><button class="btn-refine" data-sfkey="${sfKey}" title="Refinar '${esc(nome)}' com outro banco">🔧</button></td>
+    </tr>${detailHtml}${refineRowHtml}`;
   }).join('');
 
   // Linha de totais
@@ -1876,7 +1977,7 @@ function buildTabela(wrap, data) {
     <div class="tbl-scroll-wrap">
       <table class="mi-tbl">
         <thead><tr>
-          <th>Subfase</th>${thLPs}${thDelta}
+          <th>Subfase</th>${thLPs}${thDelta}${thRefine}
         </tr></thead>
         <tbody>
           ${rows}
@@ -1885,6 +1986,7 @@ function buildTabela(wrap, data) {
               <span class="sf-name-text" style="font-weight:800;color:var(--text)">TOTAL</span>
             </div></td>
             ${totalTds}${totalDeltaTd}
+            <td class="td-refine"></td>
           </tr>
         </tbody>
       </table>
@@ -1903,6 +2005,101 @@ function buildTabela(wrap, data) {
 
   wrap.querySelector('#btn-exp-csv')?.addEventListener('click',  () => exportarCSV(_lastResult));
   wrap.querySelector('#btn-exp-json')?.addEventListener('click', () => exportarJSON(_lastResult));
+
+  // ── Delegação: botão 🔧 toggle refine-row ─────────────────────────────────
+  wrap.addEventListener('click', async e => {
+    // Toggle da linha de refinamento
+    const btnRef = e.target.closest('.btn-refine');
+    if (btnRef) {
+      const sfKey   = btnRef.dataset.sfkey;
+      const refRow  = document.getElementById(`refine-row-${sfKey}`);
+      if (!refRow) return;
+      const opening = refRow.classList.toggle('hidden');  // false = visível
+      // "opening" true = estava escondida → agora aparece (toggle devolve o estado *após* toggle)
+      // Ajuste: classList.toggle devolve true se a classe FOI ADICIONADA (hidden ficou ativo) → fecha
+      // queremos verificar se agora está visível:
+      const visivel = !refRow.classList.contains('hidden');
+      // Atualiza estado visual do botão
+      wrap.querySelectorAll('.btn-refine').forEach(b => {
+        b.classList.toggle('active', b.dataset.sfkey === sfKey && visivel);
+      });
+      if (visivel) document.getElementById(`refine-banco-${sfKey}`)?.focus();
+      return;
+    }
+
+    // Botão "▶ Testar"
+    const btnCalc = e.target.closest('.refine-btn-test');
+    if (btnCalc) {
+      const sfKey    = btnCalc.dataset.sfkey;
+      const bancoInp = document.getElementById(`refine-banco-${sfKey}`);
+      const lpSel    = document.getElementById(`refine-lp-${sfKey}`);
+      const resEl    = document.getElementById(`refine-result-${sfKey}`);
+      const banco    = bancoInp?.value?.trim();
+      const lpKey    = lpSel?.value;
+      if (!banco || !lpKey || !_lastPayload) return;
+
+      const lp        = (_lastResult?.lps || []).find(l => l.key === lpKey);
+      const ptsAtual  = lp?.subfases?.[sfKey]?.pts ?? 0;
+
+      btnCalc.disabled = true;
+      resEl.innerHTML  = `<span style="display:inline-block;animation:spin 1s linear infinite">⟳</span> Calculando…`;
+
+      try {
+        const r = await fetch('/api/calcular/mi/refine', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ ..._lastPayload, subfase_key: sfKey, lp_key: lpKey, banco }),
+        }).then(resp => resp.json());
+
+        if (r.erro) throw new Error(r.erro);
+
+        const newPts = r.pts ?? 0;
+        const delta  = newPts - ptsAtual;
+        const cls    = delta < 0 ? 'worse' : '';
+        const sinal  = delta > 0 ? '+' : '';
+        const avisosHtml = r.avisos?.length
+          ? `<span class="refine-avisos" title="${r.avisos.join(' | ')}"> ⚠</span>` : '';
+
+        resEl.innerHTML = `
+          <span class="refine-old">${fmt(ptsAtual)}</span>
+          <span class="refine-arrow">→</span>
+          <span class="refine-new ${cls}">${fmt(newPts)} pts</span>
+          <span style="font-size:10px;color:var(--muted)">(${sinal}${fmt(delta)})</span>
+          ${avisosHtml}
+          <button class="refine-btn-accept" data-sfkey="${sfKey}" data-lpkey="${lpKey}" data-banco="${esc(banco)}"
+            data-pts="${newPts}" data-camada='${JSON.stringify(r.por_camada || [])}'>✓ Aceitar</button>
+          <button class="refine-btn-cancel" data-sfkey="${sfKey}">✗</button>`;
+      } catch (err) {
+        resEl.innerHTML = `<span style="color:var(--danger)">Erro: ${esc(err.message)}</span>`;
+      } finally {
+        btnCalc.disabled = false;
+      }
+      return;
+    }
+
+    // Botão "✓ Aceitar"
+    const btnAcc = e.target.closest('.refine-btn-accept');
+    if (btnAcc) {
+      const sfKey      = btnAcc.dataset.sfkey;
+      const lpKey      = btnAcc.dataset.lpkey;
+      const banco      = btnAcc.dataset.banco;
+      const newPts     = parseFloat(btnAcc.dataset.pts);
+      const porCamada  = JSON.parse(btnAcc.dataset.camada || '[]');
+      aceitarRefine(sfKey, lpKey, newPts, porCamada, banco);
+      return;
+    }
+
+    // Botão "✗ Cancelar"
+    const btnCan = e.target.closest('.refine-btn-cancel');
+    if (btnCan) {
+      const sfKey  = btnCan.dataset.sfkey;
+      const refRow = document.getElementById(`refine-row-${sfKey}`);
+      refRow?.classList.add('hidden');
+      wrap.querySelectorAll(`.btn-refine[data-sfkey="${sfKey}"]`)
+        .forEach(b => b.classList.remove('active'));
+      return;
+    }
+  });
 }
 
 // ── Gráfico de barras empilhadas (SVG) ────────────────────────────────────

@@ -21,6 +21,13 @@ function loadMapeamento() {
   return JSON.parse(fs.readFileSync(MAPEAMENTO_PATH, 'utf8'));
 }
 
+// Extrai mensagem legível de erros (incluindo AggregateError do node-postgres)
+function errMsg(e) {
+  if (e?.message) return e.message;
+  if (e?.errors?.[0]?.message) return e.errors[0].message;
+  return e?.code || String(e);
+}
+
 // Normaliza string: minúsculas + remove acentos + colapsa espaços
 function norm(s) {
   return (s || '')
@@ -55,7 +62,7 @@ async function buildMapping(sapPool) {
     rows = r.rows;
     console.log(`[sap-mapping] ${rows.length} subfases encontradas no SAP (com linha_producao_id via fase)`);
   } catch (e) {
-    console.warn(`[sap-mapping] fallback — query com fase.linha_producao_id falhou: ${e.message}`);
+    console.warn(`[sap-mapping] fallback — query com fase.linha_producao_id falhou: ${errMsg(e)}`);
     // Fallback 1: tenta sem JOIN em fase (subfase pode ter lp_id diretamente)
     try {
       const r = await sapPool.query(`
@@ -68,7 +75,7 @@ async function buildMapping(sapPool) {
       console.log(`[sap-mapping] ${rows.length} subfases encontradas (fallback com sf.linha_producao_id)`);
     } catch (e2) {
       // Fallback 2: query mínima, sem linha_producao_id
-      console.warn(`[sap-mapping] fallback2 — sem linha_producao_id: ${e2.message}`);
+      console.warn(`[sap-mapping] fallback2 — sem linha_producao_id: ${errMsg(e2)}`);
       try {
         const r = await sapPool.query(`
           SELECT id, nome, NULL::int AS linha_producao_id
@@ -78,7 +85,7 @@ async function buildMapping(sapPool) {
         rows = r.rows;
         console.log(`[sap-mapping] ${rows.length} subfases encontradas (fallback mínimo)`);
       } catch (e3) {
-        console.error(`[sap-mapping] erro fatal ao listar subfases: ${e3.message}`);
+        console.error(`[sap-mapping] erro fatal ao listar subfases (SAP offline?): ${errMsg(e3)}`);
         return getFullMapping();
       }
     }

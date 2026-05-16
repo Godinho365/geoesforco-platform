@@ -1573,6 +1573,80 @@ router.post("/calcular/mi", async (req, res) => {
   }
 });
 
+// ── Refinamento MI: recalcula UMA subfase com banco EDGV diferente ──────────
+// POST /api/calcular/mi/refine
+// Body: { subfase_key, lp_key, banco, ut_ids | geom_geojson, denominador_escala? }
+// O banco EDGV é trocado temporariamente só durante este cálculo.
+router.post("/calcular/mi/refine", async (req, res) => {
+  try {
+    const { subfase_key, lp_key, banco, ut_ids, geom_geojson, denominador_escala } = req.body;
+
+    if (!subfase_key) return res.status(400).json({ erro: "subfase_key é obrigatório" });
+    if (!lp_key)      return res.status(400).json({ erro: "lp_key é obrigatório" });
+    if (!banco)       return res.status(400).json({ erro: "banco é obrigatório" });
+
+    // ── Resolve geometria e escala (mesmo padrão do /calcular/mi) ──────────────
+    let geomWKT, denomEscala;
+
+    if (geom_geojson) {
+      const geoms = Array.isArray(geom_geojson) ? geom_geojson : [geom_geojson];
+      const { rows } = await edgvPool.query(`
+        SELECT ST_AsText(ST_Union(g.geom)) AS wkt
+        FROM (
+          SELECT ST_Force2D(ST_GeomFromGeoJSON(elem::text)) AS geom
+          FROM json_array_elements($1::json) elem
+        ) g
+      `, [JSON.stringify(geoms)]);
+      geomWKT     = rows[0]?.wkt;
+      denomEscala = denominador_escala || 25000;
+
+    } else if (Array.isArray(ut_ids) && ut_ids.length > 0) {
+      const ids = ut_ids.map(Number).filter(n => !isNaN(n));
+      const { rows } = await sapPool.query(`
+        SELECT
+          ST_AsText(ST_Union(ST_Transform(ut.geom, 4674))) AS wkt,
+          MAX(l.denominador_escala)                        AS denom_escala
+        FROM macrocontrole.unidade_trabalho ut
+        LEFT JOIN macrocontrole.lote l ON l.id = ut.lote_id
+        WHERE ut.id = ANY($1::int[])
+      `, [ids]);
+      geomWKT     = rows[0]?.wkt;
+      denomEscala = denominador_escala || rows[0]?.denom_escala || 25000;
+
+    } else {
+      return res.status(400).json({ erro: "Forneça ut_ids ou geom_geojson." });
+    }
+
+    if (!geomWKT) return res.status(400).json({ erro: "Geometria inválida ou nula." });
+
+    const multEscala = calcMultEscala(denomEscala, lp_key);
+    const extraData  = resolveExtraData(req.body);
+
+    // ── Troca temporária do banco EDGV ────────────────────────────────────────
+    const bancoOriginal = getEdgvDb();
+    let resultado;
+    try {
+      if (banco !== bancoOriginal) setEdgvDb(banco);
+      resultado = await calculateScore(geomWKT, subfase_key, multEscala, extraData, lp_key);
+    } finally {
+      if (banco !== bancoOriginal) setEdgvDb(bancoOriginal);
+    }
+
+    res.json({
+      subfase_key,
+      lp_key,
+      banco,
+      pts:        resultado.score_total,
+      por_camada: (resultado.por_camada || []).filter(d => d.subfase === subfase_key),
+      avisos:     resultado.avisos_query || [],
+    });
+
+  } catch (e) {
+    console.error("[calcular/mi/refine]", e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // ── Diagnóstico do banco OSM ──────────────────────────────────────────────────
 router.get("/health/osm", async (req, res) => {
   try {
