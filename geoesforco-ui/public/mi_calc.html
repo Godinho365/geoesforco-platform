@@ -208,6 +208,20 @@ a { color: inherit; text-decoration: none; }
 }
 /* Leaflet overrides for dark theme */
 .leaflet-container { background: #0a1628 !important; }
+.leaflet-control-layers {
+  background: rgba(8,16,34,0.95) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  color: var(--text) !important;
+  backdrop-filter: blur(8px);
+}
+.leaflet-control-layers-toggle {
+  background-color: rgba(8,16,34,0.95) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+}
+.leaflet-control-layers label { color: var(--text) !important; font-size: 12px !important; }
+.leaflet-control-layers-separator { border-top-color: var(--border) !important; }
 .map-tooltip {
   background: rgba(8,16,34,0.92) !important;
   border: 1px solid var(--border) !important;
@@ -918,12 +932,27 @@ function initMap() {
     zoomControl: true,
   });
 
-  // Tiles dark (CartoDB Dark Matter)
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  // Camadas base
+  const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
-    subdomains: 'abcd',
-  }).addTo(_map);
+  });
+
+  const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+    attribution: '&copy; Google',
+    maxZoom: 21,
+    tileSize: 256,
+  });
+
+  // OSM como padrão
+  osmLayer.addTo(_map);
+
+  // Controle de camadas (canto superior direito)
+  L.control.layers(
+    { 'OSM': osmLayer, 'Google Híbrido': googleHybrid },
+    {},
+    { position: 'topright', collapsed: true }
+  ).addTo(_map);
 }
 
 // ── Banco EDGV: carregar lista, selecionar e mostrar moldura ─────────────
