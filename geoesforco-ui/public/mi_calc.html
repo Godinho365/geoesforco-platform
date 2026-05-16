@@ -503,6 +503,38 @@ td.td-pts.total .tdi, td.td-pts-zero.total .tdi { font-size: 12px; font-weight: 
 .refine-btn-cancel:hover { border-color: var(--danger); color: var(--danger); }
 .refine-avisos { font-size: 10px; color: var(--warn); }
 
+/* Seletor de moldura dentro do painel de refino */
+.refine-moldura-wrap {
+  width: 100%; margin-top: 6px;
+  border-top: 1px solid rgba(26,51,88,.5); padding-top: 7px;
+}
+.refine-moldura-hd {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 5px;
+}
+.refine-moldura-hd-label { font-size: 10px; color: var(--muted); flex: 1; }
+.btn-refine-moldura-clear {
+  background: none; border: none; color: var(--muted); font-size: 10px;
+  cursor: pointer; padding: 0 3px;
+}
+.btn-refine-moldura-clear:hover { color: var(--danger); }
+.refine-moldura-list {
+  display: flex; flex-wrap: wrap; gap: 4px; max-height: 90px; overflow-y: auto;
+}
+.refine-moldura-list::-webkit-scrollbar { width: 3px; }
+.refine-moldura-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.refine-mf-chip {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg2);
+  font-size: 10px; color: var(--muted); transition: all .12s; user-select: none;
+  white-space: nowrap;
+}
+.refine-mf-chip.sel {
+  border-color: rgba(255,167,38,.5); background: rgba(255,167,38,.1); color: var(--warn);
+}
+.refine-mf-chip:hover { border-color: var(--accent); color: var(--text); }
+.refine-moldura-status { font-size: 10px; color: var(--muted); padding: 2px 0; }
+
 /* Mode toggle */
 .mode-toggle {
   display: flex; gap: 4px; padding: 8px 12px 6px;
@@ -1928,15 +1960,30 @@ function buildTabela(wrap, data) {
       : '';
 
     const refineRowHtml = `<tr id="refine-row-${sfKey}" class="refine-row hidden">
-      <td colspan="${colTotal}"><div class="refine-inner">
-        <span class="refine-label">🔧 Refinar com banco:</span>
-        <input class="refine-banco-inp" list="bancos-datalist" placeholder="nome do banco…" id="refine-banco-${sfKey}">
-        ${nLPs > 1
-          ? `<select class="refine-lp-sel" id="refine-lp-${sfKey}">${lpOptsSel}</select>`
-          : `<input type="hidden" id="refine-lp-${sfKey}" value="${lps[0]?.key || ''}">`
-        }
-        <button class="refine-btn-test" id="refine-calc-${sfKey}" data-sfkey="${sfKey}">▶ Testar</button>
-        <div class="refine-result" id="refine-result-${sfKey}"></div>
+      <td colspan="${colTotal}"><div class="refine-inner" style="flex-direction:column;align-items:flex-start">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%">
+          <span class="refine-label">🔧 Refinar com banco:</span>
+          <input class="refine-banco-inp" list="bancos-datalist" placeholder="nome do banco…" id="refine-banco-${sfKey}">
+          ${nLPs > 1
+            ? `<select class="refine-lp-sel" id="refine-lp-${sfKey}">${lpOptsSel}</select>`
+            : `<input type="hidden" id="refine-lp-${sfKey}" value="${lps[0]?.key || ''}">`
+          }
+          <button class="btn-refine-moldura-load refine-btn-test" data-sfkey="${sfKey}"
+            style="background:rgba(79,195,247,.1);border-color:rgba(79,195,247,.3);color:var(--accent);flex-shrink:0">
+            📍 Moldura do banco
+          </button>
+          <button class="refine-btn-test" id="refine-calc-${sfKey}" data-sfkey="${sfKey}">▶ Testar</button>
+          <div class="refine-result" id="refine-result-${sfKey}"></div>
+        </div>
+        <div class="refine-moldura-wrap hidden" id="refine-mf-wrap-${sfKey}">
+          <div class="refine-moldura-hd">
+            <span class="refine-moldura-hd-label">Moldura do banco — selecione as feições (vazio = usa geometria original)</span>
+            <button class="btn-refine-moldura-clear" data-sfkey="${sfKey}" title="Desmarcar tudo">✕ limpar</button>
+          </div>
+          <div class="refine-moldura-list" id="refine-mf-list-${sfKey}">
+            <span class="refine-moldura-status">Clique em "📍 Selecionar moldura" para carregar.</span>
+          </div>
+        </div>
       </div></td>
     </tr>`;
 
@@ -2027,28 +2074,96 @@ function buildTabela(wrap, data) {
       return;
     }
 
+    // Botão "📍 Moldura do banco" — carrega features e mostra chips
+    const btnMoldura = e.target.closest('.btn-refine-moldura-load');
+    if (btnMoldura) {
+      const sfKey    = btnMoldura.dataset.sfkey;
+      const bancoInp = document.getElementById(`refine-banco-${sfKey}`);
+      const banco    = bancoInp?.value?.trim();
+      const mfWrap   = document.getElementById(`refine-mf-wrap-${sfKey}`);
+      const mfList   = document.getElementById(`refine-mf-list-${sfKey}`);
+      if (!banco || !mfWrap || !mfList) return;
+
+      btnMoldura.disabled = true;
+      mfWrap.classList.remove('hidden');
+      mfList.innerHTML = `<span class="refine-moldura-status"><span style="animation:spin 1s linear infinite;display:inline-block">⟳</span> Carregando moldura…</span>`;
+
+      try {
+        const fc = await fetch(`/api/moldura/features?banco=${encodeURIComponent(banco)}`)
+          .then(r => r.json());
+        if (fc.erro) throw new Error(fc.erro);
+        const feats = fc.features || [];
+        if (!feats.length) {
+          mfList.innerHTML = `<span class="refine-moldura-status">Nenhuma feição em aux_moldura_a para o banco "${esc(banco)}".</span>`;
+          return;
+        }
+        // Guarda geometrias indexadas no elemento da lista
+        mfList._refineFeatures = feats;
+        mfList.innerHTML = feats.map((f, i) => {
+          const p    = f.properties || {};
+          const nome = p.mi || p.inom || p.nome || p.id || i;
+          return `<span class="refine-mf-chip" data-idx="${i}" title="${esc(String(nome))}">${esc(String(nome))}</span>`;
+        }).join('');
+      } catch (err) {
+        mfList.innerHTML = `<span class="refine-moldura-status" style="color:var(--danger)">Erro: ${esc(err.message)}</span>`;
+      } finally {
+        btnMoldura.disabled = false;
+      }
+      return;
+    }
+
+    // Chips de moldura — toggle seleção
+    const chip = e.target.closest('.refine-mf-chip');
+    if (chip) {
+      chip.classList.toggle('sel');
+      return;
+    }
+
+    // Botão limpar seleção moldura
+    const btnClear = e.target.closest('.btn-refine-moldura-clear');
+    if (btnClear) {
+      const sfKey  = btnClear.dataset.sfkey;
+      document.querySelectorAll(`#refine-mf-list-${sfKey} .refine-mf-chip.sel`)
+        .forEach(c => c.classList.remove('sel'));
+      return;
+    }
+
     // Botão "▶ Testar"
-    const btnCalc = e.target.closest('.refine-btn-test');
-    if (btnCalc) {
-      const sfKey    = btnCalc.dataset.sfkey;
+    const btnCalcAny = e.target.closest('[id^="refine-calc-"]');
+    if (btnCalcAny) {
+      const sfKey    = btnCalcAny.id.replace('refine-calc-', '');
       const bancoInp = document.getElementById(`refine-banco-${sfKey}`);
       const lpSel    = document.getElementById(`refine-lp-${sfKey}`);
       const resEl    = document.getElementById(`refine-result-${sfKey}`);
+      const mfList   = document.getElementById(`refine-mf-list-${sfKey}`);
       const banco    = bancoInp?.value?.trim();
       const lpKey    = lpSel?.value;
       if (!banco || !lpKey || !_lastPayload) return;
 
-      const lp        = (_lastResult?.lps || []).find(l => l.key === lpKey);
-      const ptsAtual  = lp?.subfases?.[sfKey]?.pts ?? 0;
+      // Verifica se há chips de moldura selecionados → usa essa geometria
+      const selChips  = mfList ? [...mfList.querySelectorAll('.refine-mf-chip.sel')] : [];
+      let refinePayload = { ..._lastPayload, subfase_key: sfKey, lp_key: lpKey, banco };
 
-      btnCalc.disabled = true;
-      resEl.innerHTML  = `<span style="display:inline-block;animation:spin 1s linear infinite">⟳</span> Calculando…`;
+      if (selChips.length > 0 && mfList._refineFeatures) {
+        const geoms = selChips.map(c => mfList._refineFeatures[+c.dataset.idx]?.geometry).filter(Boolean);
+        if (geoms.length) {
+          // Substitui a geometria original pela selecionada no banco de refine
+          const { ut_ids: _ut, ...rest } = refinePayload;  // remove ut_ids se houver
+          refinePayload = { ...rest, geom_geojson: geoms, denominador_escala: _lastResult?.escala };
+        }
+      }
+
+      const lp       = (_lastResult?.lps || []).find(l => l.key === lpKey);
+      const ptsAtual = lp?.subfases?.[sfKey]?.pts ?? 0;
+
+      btnCalcAny.disabled = true;
+      resEl.innerHTML = `<span style="display:inline-block;animation:spin 1s linear infinite">⟳</span> Calculando…`;
 
       try {
         const r = await fetch('/api/calcular/mi/refine', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ ..._lastPayload, subfase_key: sfKey, lp_key: lpKey, banco }),
+          body:    JSON.stringify(refinePayload),
         }).then(resp => resp.json());
 
         if (r.erro) throw new Error(r.erro);
@@ -2059,20 +2174,22 @@ function buildTabela(wrap, data) {
         const sinal  = delta > 0 ? '+' : '';
         const avisosHtml = r.avisos?.length
           ? `<span class="refine-avisos" title="${r.avisos.join(' | ')}"> ⚠</span>` : '';
+        const geomInfo = selChips.length
+          ? `<span style="font-size:10px;color:var(--accent)"> (${selChips.length} feat. selecionadas)</span>` : '';
 
         resEl.innerHTML = `
           <span class="refine-old">${fmt(ptsAtual)}</span>
           <span class="refine-arrow">→</span>
           <span class="refine-new ${cls}">${fmt(newPts)} pts</span>
           <span style="font-size:10px;color:var(--muted)">(${sinal}${fmt(delta)})</span>
-          ${avisosHtml}
+          ${geomInfo}${avisosHtml}
           <button class="refine-btn-accept" data-sfkey="${sfKey}" data-lpkey="${lpKey}" data-banco="${esc(banco)}"
             data-pts="${newPts}" data-camada='${JSON.stringify(r.por_camada || [])}'>✓ Aceitar</button>
           <button class="refine-btn-cancel" data-sfkey="${sfKey}">✗</button>`;
       } catch (err) {
         resEl.innerHTML = `<span style="color:var(--danger)">Erro: ${esc(err.message)}</span>`;
       } finally {
-        btnCalc.disabled = false;
+        btnCalcAny.disabled = false;
       }
       return;
     }

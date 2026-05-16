@@ -353,7 +353,12 @@ router.get("/moldura", async (req, res) => {
 // GET /api/moldura/features  — feições individuais (para seleção no MI)
 // ------------------------------------------------------------------ //
 router.get("/moldura/features", async (req, res) => {
+  // Parâmetro opcional ?banco=nome — usa banco diferente sem alterar o pool global
+  const bancoParam    = req.query.banco?.trim() || null;
+  const bancoOriginal = getEdgvDb();
   try {
+    if (bancoParam && bancoParam !== bancoOriginal) setEdgvDb(bancoParam);
+
     // Query única: to_jsonb(t.*) - 'geom' remove a coluna de geometria e retorna
     // todas as outras colunas como JSONB — sem precisar inspecionar information_schema.
     const { rows } = await edgvPool.query(`
@@ -373,6 +378,9 @@ router.get("/moldura/features", async (req, res) => {
   } catch (err) {
     console.error('[moldura/features]', err.message);
     res.status(500).json({ erro: err.message });
+  } finally {
+    // Restaura banco original se foi trocado
+    if (bancoParam && bancoParam !== bancoOriginal) setEdgvDb(bancoOriginal);
   }
 });
 
