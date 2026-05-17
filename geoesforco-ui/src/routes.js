@@ -3,7 +3,8 @@ const path   = require("path");
 const crypto = require("crypto");
 const express = require("express");
 const multer  = require("multer");
-const { sapPool, edgvPool, osmPool, getEdgvDb, setEdgvDb } = require("./db");
+const { Pool } = require("pg");
+const { sapPool, edgvPool, osmPool, getEdgvDb, setEdgvDb, swapEdgvPool } = require("./db");
 const {
   calculateScore,
   calculateAllSubfases,
@@ -26,6 +27,21 @@ function loadMapeamento(key = "mapeamento_topo") {
     try { fs.watch(filePath, () => _mapRoutesCache.delete(key)); } catch (_) {}
   }
   return _mapRoutesCache.get(key);
+}
+
+// ── Cria um pool temporário com conexão customizada ──────────────────────────
+function buildTempPool(conn) {
+  return new Pool({
+    host:                    conn.host     || 'localhost',
+    port:                    parseInt(conn.port || '5432'),
+    database:                conn.database || conn.banco || 'postgres',
+    user:                    conn.user     || process.env.PG_USER     || 'postgres',
+    password:                conn.password || process.env.PG_PASSWORD || 'postgres',
+    max:                     3,
+    connectionTimeoutMillis: 8000,
+    idleTimeoutMillis:       10000,
+    query_timeout:           60000,
+  });
 }
 
 const router = express.Router();
@@ -353,11 +369,29 @@ router.get("/moldura", async (req, res) => {
 // GET /api/moldura/features  — feições individuais (para seleção no MI)
 // ------------------------------------------------------------------ //
 router.get("/moldura/features", async (req, res) => {
-  // Parâmetro opcional ?banco=nome — usa banco diferente sem alterar o pool global
-  const bancoParam    = req.query.banco?.trim() || null;
+  // Parâmetros opcionais de conexão:
+  //   ?banco=nome                        — troca banco no servidor local
+  //   ?host=&port=&user=&password=&banco= — conexão customizada (servidor remoto)
+  const bancoParam = req.query.banco?.trim()    || null;
+  const connHost   = req.query.host?.trim()     || null;
+  const connPort   = req.query.port?.trim()     || null;
+  const connUser   = req.query.user?.trim()     || null;
+  const connPass   = req.query.password?.trim() || null;
+
+  const hasCustomConn = !!(connHost || connPort || connUser || connPass);
   const bancoOriginal = getEdgvDb();
+  let tempPool = null;
+  let restore  = null;
+
   try {
-    if (bancoParam && bancoParam !== bancoOriginal) setEdgvDb(bancoParam);
+    if (hasCustomConn) {
+      // Conexão com servidor diferente (ou credenciais diferentes)
+      tempPool = buildTempPool({ host: connHost, port: connPort,
+        database: bancoParam, user: connUser, password: connPass });
+      restore = swapEdgvPool(tempPool);
+    } else if (bancoParam && bancoParam !== bancoOriginal) {
+      setEdgvDb(bancoParam);
+    }
 
     // Query única: to_jsonb(t.*) - 'geom' remove a coluna de geometria e retorna
     // todas as outras colunas como JSONB — sem precisar inspecionar information_schema.
@@ -379,8 +413,10 @@ router.get("/moldura/features", async (req, res) => {
     console.error('[moldura/features]', err.message);
     res.status(500).json({ erro: err.message });
   } finally {
-    // Restaura banco original se foi trocado
-    if (bancoParam && bancoParam !== bancoOriginal) setEdgvDb(bancoOriginal);
+    if (restore)  restore();
+    if (tempPool) tempPool.end().catch(() => {});
+    if (!hasCustomConn && bancoParam && bancoParam !== bancoOriginal)
+      setEdgvDb(bancoOriginal);
   }
 });
 
@@ -500,6 +536,24 @@ router.get('/uts', async (req, res) => {
     res.json({ type: 'FeatureCollection', features });
   } catch (err) {
     res.status(500).json({ erro: err.message });
+  }
+});
+
+// ------------------------------------------------------------------ //
+// POST /api/uts/geoms  — retorna { id, geom } para uma lista de ut_ids
+// ------------------------------------------------------------------ //
+router.post("/uts/geoms", async (req, res) => {
+  try {
+    const ids = (req.body.ut_ids || []).map(Number).filter(n => !isNaN(n));
+    if (!ids.length) return res.json([]);
+    const { rows } = await sapPool.query(
+      `SELECT id, ST_AsGeoJSON(geom)::json AS geom
+       FROM macrocontrole.unidade_trabalho WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ erro: e.message });
   }
 });
 
@@ -1040,7 +1094,7 @@ router.post("/calcular", async (req, res) => {
 // Returns: { resultados: [...sorted desc], erros: [...] }
 // ------------------------------------------------------------------ //
 router.post("/calcular/lote", async (req, res) => {
-  const { ut_ids, subfase_key } = req.body;
+  const { ut_ids, subfase_key, todas_subfases } = req.body;
   if (!Array.isArray(ut_ids) || !ut_ids.length) {
     return res.status(400).json({ erro: "ut_ids deve ser um array não-vazio" });
   }
@@ -1080,17 +1134,43 @@ router.post("/calcular/lote", async (req, res) => {
       const chunk = rows.slice(i, i + CHUNK);
       const chunkRes = await Promise.all(
         chunk.map(async (r) => {
-          const sfKey = subfase_key || sapIdToKey(r.subfase_id);
-          if (!sfKey)
-            return {
-              ut_id: r.id,
-              nome:  r.nome,
-              geom:  r.geom,
-              erro:  `subfase id=${r.subfase_id} não mapeada — consulte /api/sap-mapping/status`,
-            };
           try {
             const lpKey      = req.body.lp_key || detectLPKey(r.lp_nome);
             const multEscala = calcMultEscala(r.denominador_escala, lpKey);
+
+            // Modo "todas as subfases": calcula todas e retorna total agregado
+            if (todas_subfases) {
+              const result = await calculateAllSubfases(r.wkt, multEscala, lpKey, extraData);
+              const por_subfase = Object.fromEntries(
+                Object.entries(result.subfases).map(([k, v]) => [k, v.pts ?? 0])
+              );
+              const por_camada = Object.values(result.subfases).flatMap(v => v.por_camada || []);
+              return {
+                ut_id:             r.id,
+                nome:              r.nome,
+                geom:              r.geom,
+                subfase_key:       '__all__',
+                denominador_escala: r.denominador_escala,
+                lp_nome:           r.lp_nome,
+                lp_mapeamento:     lpKey,
+                score_total:       result.total,
+                por_subfase,
+                por_camada,
+                mult_escala:       multEscala,
+                n_metricas_brutas: Object.values(result.subfases).filter(v => (v.pts ?? 0) > 0).length,
+                avisos_query:      Object.values(result.subfases).flatMap(v => v.avisos || []),
+              };
+            }
+
+            // Modo normal: subfase única
+            const sfKey = subfase_key || sapIdToKey(r.subfase_id);
+            if (!sfKey)
+              return {
+                ut_id: r.id,
+                nome:  r.nome,
+                geom:  r.geom,
+                erro:  `subfase id=${r.subfase_id} não mapeada — consulte /api/sap-mapping/status`,
+              };
             const score = await calculateScore(r.wkt, sfKey, multEscala, extraData, lpKey);
             return { ut_id: r.id, nome: r.nome, geom: r.geom, subfase_key: sfKey, denominador_escala: r.denominador_escala, lp_nome: r.lp_nome, ...score };
           } catch (e) {
@@ -1583,15 +1663,17 @@ router.post("/calcular/mi", async (req, res) => {
 
 // ── Refinamento MI: recalcula UMA subfase com banco EDGV diferente ──────────
 // POST /api/calcular/mi/refine
-// Body: { subfase_key, lp_key, banco, ut_ids | geom_geojson, denominador_escala? }
-// O banco EDGV é trocado temporariamente só durante este cálculo.
+// Body: { subfase_key, lp_key, banco?, conn?, ut_ids | geom_geojson, denominador_escala? }
+//   conn: { host, port, database, user, password } — para servidor remoto
+//   banco: string — para banco diferente no mesmo servidor
+// O pool EDGV é trocado temporariamente só durante este cálculo.
 router.post("/calcular/mi/refine", async (req, res) => {
   try {
-    const { subfase_key, lp_key, banco, ut_ids, geom_geojson, denominador_escala } = req.body;
+    const { subfase_key, lp_key, banco, conn, ut_ids, geom_geojson, denominador_escala } = req.body;
 
     if (!subfase_key) return res.status(400).json({ erro: "subfase_key é obrigatório" });
     if (!lp_key)      return res.status(400).json({ erro: "lp_key é obrigatório" });
-    if (!banco)       return res.status(400).json({ erro: "banco é obrigatório" });
+    if (!conn?.host && !banco) return res.status(400).json({ erro: "banco ou conn.host é obrigatório" });
 
     // ── Resolve geometria e escala (mesmo padrão do /calcular/mi) ──────────────
     let geomWKT, denomEscala;
@@ -1630,20 +1712,40 @@ router.post("/calcular/mi/refine", async (req, res) => {
     const multEscala = calcMultEscala(denomEscala, lp_key);
     const extraData  = resolveExtraData(req.body);
 
-    // ── Troca temporária do banco EDGV ────────────────────────────────────────
-    const bancoOriginal = getEdgvDb();
+    // ── Troca temporária do pool EDGV ────────────────────────────────────────
     let resultado;
+    let tempPool = null;
+    let restore  = null;
     try {
-      if (banco !== bancoOriginal) setEdgvDb(banco);
-      resultado = await calculateScore(geomWKT, subfase_key, multEscala, extraData, lp_key);
+      if (conn && conn.host) {
+        // Conexão customizada: host/porta/usuário/senha diferentes do padrão
+        tempPool = buildTempPool({ ...conn, database: conn.database || conn.banco || banco });
+        restore  = swapEdgvPool(tempPool);
+        resultado = await calculateScore(geomWKT, subfase_key, multEscala, extraData, lp_key);
+      } else {
+        // Mesmo servidor local, apenas banco diferente
+        const bancoOriginal = getEdgvDb();
+        const bancoTarget   = banco || bancoOriginal;
+        if (bancoTarget !== bancoOriginal) setEdgvDb(bancoTarget);
+        try {
+          resultado = await calculateScore(geomWKT, subfase_key, multEscala, extraData, lp_key);
+        } finally {
+          if (bancoTarget !== bancoOriginal) setEdgvDb(bancoOriginal);
+        }
+      }
     } finally {
-      if (banco !== bancoOriginal) setEdgvDb(bancoOriginal);
+      if (restore)  restore();
+      if (tempPool) tempPool.end().catch(() => {});
     }
+
+    const bancoLabel = conn?.host
+      ? `${conn.host}:${conn.port || 5432}/${conn.database || conn.banco || banco}`
+      : banco;
 
     res.json({
       subfase_key,
       lp_key,
-      banco,
+      banco: bancoLabel,
       pts:        resultado.score_total,
       por_camada: (resultado.por_camada || []).filter(d => d.subfase === subfase_key),
       avisos:     resultado.avisos_query || [],

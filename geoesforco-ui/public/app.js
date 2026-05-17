@@ -2,6 +2,30 @@
    GeoEsforço — Frontend
 ════════════════════════════════════════ */
 
+// ── Histórico de cálculos (localStorage) ─────────────────────────────────────
+const GECalcStore = (() => {
+  const KEY = 'ge_calculos_v1';
+  const MAX = 150;
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (_) { return []; }
+  }
+  function save(entry) {
+    let list = load();
+    list.unshift({ id: Date.now().toString(36), salvo_em: new Date().toISOString(), ...entry });
+    if (list.length > MAX) list = list.slice(0, MAX);
+    try { localStorage.setItem(KEY, JSON.stringify(list)); }
+    catch (_) {
+      // quota excedida: corta metade e tenta novamente
+      try { localStorage.setItem(KEY, JSON.stringify(list.slice(0, Math.floor(MAX / 2)))); } catch (__) {}
+    }
+  }
+  function remove(id) {
+    localStorage.setItem(KEY, JSON.stringify(load().filter(e => e.id !== id)));
+  }
+  function clear() { localStorage.removeItem(KEY); }
+  return { load, save, remove, clear };
+})();
+
 // ── Mapa ──────────────────────────────────────────────────────────────
 const map = L.map('map', { center: [-15, -52], zoom: 5, zoomControl: false });
 
@@ -115,16 +139,31 @@ function applyLegendFilter() {
   if (infoEl) infoEl.textContent = `${fmt(absMin)} – ${fmt(absMax)} pts`;
 
   batchLayer.eachLayer(geoJsonLayer => {
-    let ut_id = null;
-    geoJsonLayer.eachLayer(sub => {
-      if (ut_id == null && sub.feature?.properties?.ut_id != null)
-        ut_id = sub.feature.properties.ut_id;
-    });
+    // Tenta obter ut_id direto da feature (L.geoJSON wrapping a single Feature)
+    // ou percorrendo sub-layers (L.GeoJSON contendo Polygons)
+    let ut_id = geoJsonLayer.feature?.properties?.ut_id ?? null;
+    if (ut_id == null && typeof geoJsonLayer.eachLayer === 'function') {
+      geoJsonLayer.eachLayer(sub => {
+        if (ut_id == null && sub.feature?.properties?.ut_id != null)
+          ut_id = sub.feature.properties.ut_id;
+      });
+    }
     const r   = ut_id != null ? batchResultById.get(ut_id) : null;
     const pts = r ? subtotalPts(r) : 0;
     const ok  = pts >= absMin && pts <= absMax;
-    geoJsonLayer.setStyle({ opacity: ok ? 0.5 : 0.05, fillOpacity: ok ? 0.55 : 0.05 });
+    geoJsonLayer.setStyle({ opacity: ok ? 1 : 0.06, fillOpacity: ok ? 0.65 : 0.06 });
   });
+
+  // Aplicar também ao layer de arquivo (resultado lote arquivo)
+  if (_arquivoResults.length > 0) {
+    _arquivoResults.forEach(({ index, result, erro }) => {
+      const lyr = _arquivoIndivLayers[index];
+      if (!lyr || erro) return;
+      const pts = subtotalPts(result);
+      const ok  = pts >= absMin && pts <= absMax;
+      lyr.setStyle({ opacity: ok ? 1 : 0.06, fillOpacity: ok ? 0.65 : 0.06 });
+    });
+  }
 }
 
 function showLegend(minPts, maxPts) {
@@ -150,7 +189,7 @@ function showLegend(minPts, maxPts) {
 function hideLegend() {
   document.querySelector('.map-legend')?.classList.add('hidden');
   // Restaura opacidade de todas as layers
-  batchLayer.eachLayer(l => l.setStyle({ opacity: 0.5, fillOpacity: 0.55 }));
+  batchLayer.eachLayer(l => l.setStyle({ opacity: 1, fillOpacity: 0.65 }));
 }
 
 const molduraLayer  = L.geoJSON(null, {
@@ -441,7 +480,17 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById(`tab-${activeTab}`).classList.add('active');
-    if (activeTab !== 'sap') showSubfaseSelector(true);
+    if (activeTab !== 'sap') {
+      showSubfaseSelector(true);
+      // Arquivo/Mapa: mostrar seletores de escala e LP desde o início
+      showEscalaSelector();
+      showLpSelector();
+    } else {
+      // SAP: esconder seletores de escala/LP (escala vem do lote, LP é detectada)
+      hideEscalaSelector();
+      hideLpSelector();
+    }
+    updateCalcBtn();
   });
 });
 
@@ -500,6 +549,17 @@ selSubfase.addEventListener('change', () => {
 document.getElementById('btn-trocar-subfase').addEventListener('click', () => {
   showSubfaseSelector(true); currentSubfaseKey = null;
   updateCurvaNivelSection(null);
+  updateCalcBtn();
+});
+
+// Botão "✦ Total" na aba SAP — calcula todas as subfases direto sem precisar trocar
+document.getElementById('btn-calcular-total-sap').addEventListener('click', async () => {
+  if (!currentUtId) { showToast('Selecione uma UT primeiro.', 'warn'); return; }
+  const sfKeyAnterior = currentSubfaseKey;
+  currentSubfaseKey = '__all__';
+  await calcularTodasSubfases();
+  // Restaura a subfase original para não bagunçar o estado
+  currentSubfaseKey = sfKeyAnterior;
   updateCalcBtn();
 });
 
@@ -771,6 +831,11 @@ function repopulateSelSubfase() {
   filtered.forEach(s => {
     selSubfase.appendChild(makeOpt(s.key, s.nome));
   });
+  // Opção especial para calcular todas as subfases de uma vez (Total MI)
+  const optAll = document.createElement('option');
+  optAll.value = '__all__';
+  optAll.textContent = '✦ Todas as subfases (Total)';
+  selSubfase.appendChild(optAll);
   if (prev) selSubfase.value = prev;
 }
 
@@ -953,6 +1018,9 @@ filterLp.addEventListener('change', () => {
 });
 filterLote.addEventListener('change', onFilterComMapa);
 filterSf.addEventListener('change', onFilterComMapa);
+
+// Checkbox "Calcular todas as subfases" — atualiza texto do botão ao marcar/desmarcar
+document.getElementById('chk-todas-subfases')?.addEventListener('change', updateCalcBtn);
 selectLpManual.addEventListener('change', () => {
   setCurrentLp(selectLpManual.value || null);
   updateCalcBtn();
@@ -1273,7 +1341,9 @@ document.getElementById('input-geojson').addEventListener('change', async e => {
               polys.map(f => ({ geojson: f.geometry, properties: f.properties || {} })),
               file.name
             );
-            currentGeojson = null; currentUtId = null; updateCalcBtn();
+            currentGeojson = null; currentUtId = null;
+            showSubfaseSelector(false); showEscalaSelector(); showLpSelector();
+            updateCalcBtn();
           }
           return;
         }
@@ -1309,8 +1379,9 @@ document.getElementById('input-geojson').addEventListener('change', async e => {
       } else {
         // Múltiplas feições — exibe todas no mapa como layers clicáveis
         _renderArquivoFeatures(data.features, file.name);
-        // currentGeojson fica null até o usuário clicar numa feição
+        // currentGeojson fica null até o usuário clicar/selecionar feições
         currentGeojson = null; currentUtId = null;
+        showSubfaseSelector(false); showEscalaSelector(); showLpSelector();
         updateCalcBtn();
       }
     } catch (err) {
@@ -1394,7 +1465,12 @@ document.getElementById('btn-calcular').addEventListener('click', async () => {
     // Cai para o bloco de cálculo individual/multi abaixo
   } else if (!currentUtId && !currentGeojson) {
     // Modo lote SAP: nenhuma UT individual selecionada, mas filtros/marcações ativos
-    await calcularPorFiltro();
+    const chkT = document.getElementById('chk-todas-subfases');
+    if (chkT?.checked) {
+      await calcularLoteTodasSubfases();
+    } else {
+      await calcularPorFiltro();
+    }
     return;
   } else if (!currentUtId && currentGeojson) {
     // Modo Mapa/GeoJSON manual — validação
@@ -1406,6 +1482,12 @@ document.getElementById('btn-calcular').addEventListener('click', async () => {
       showToast('Selecione a escala de produção.', 'warn');
       return;
     }
+  }
+
+  // Modo "Todas as subfases" — chama /api/calcular/mi em vez de /api/calcular
+  if (currentSubfaseKey === '__all__') {
+    await calcularTodasSubfases();
+    return;
   }
 
   // Múltiplas feições do arquivo → calcula cada uma individualmente
@@ -1442,6 +1524,21 @@ document.getElementById('btn-calcular').addEventListener('click', async () => {
     lastResult = await res.json();
     renderResultado(lastResult);
     openResultPanel();
+    // Auto-save no histórico
+    GECalcStore.save({
+      tipo:          'single',
+      label:         `${currentUtNome || 'UT'} · ${allSubfases.find(s => s.key === lastResult.subfase_key)?.nome || lastResult.subfase_key || '–'}`,
+      subfase_key:   lastResult.subfase_key,
+      subfase_nome:  allSubfases.find(s => s.key === lastResult.subfase_key)?.nome || null,
+      score:         subtotalPts(lastResult),
+      escala:        lastResult.denominador_escala ?? null,
+      lp_mapeamento: lastResult.lp_mapeamento ?? null,
+      banco:         document.getElementById('db-badge')?.textContent?.trim() || null,
+      n_uts:         null,
+      ut_id:         lastResult.ut_id ?? null,          // para buscar geometria on-demand
+      geom_geojson:  currentGeojson ?? null,            // disponível em modo arquivo/mapa
+      result:        lastResult,
+    });
   } catch (err) {
     showToast(`Erro no cálculo: ${err.message}`, 'error');
   } finally {
@@ -1537,6 +1634,20 @@ async function calcularArquivoLote() {
     lastBatchResultados = batchFmt;
     document.getElementById('btn-ver-ranking').classList.remove('hidden');
     renderRanking(batchFmt, errosList);
+    // Auto-save no histórico
+    const sfNomeB = allSubfases.find(s => s.key === batchFmt[0]?.subfase_key)?.nome || batchFmt[0]?.subfase_key || '–';
+    GECalcStore.save({
+      tipo:          'batch',
+      label:         `${_arquivoCurrentFileName || 'Arquivo'} — ${batchFmt.length} feições · ${sfNomeB}`,
+      subfase_key:   batchFmt[0]?.subfase_key ?? null,
+      subfase_nome:  sfNomeB,
+      score:         batchFmt.reduce((s, r) => s + subtotalPts(r), 0),
+      escala:        batchFmt[0]?.denominador_escala ?? null,
+      lp_mapeamento: batchFmt[0]?.lp_mapeamento ?? null,
+      banco:         document.getElementById('db-badge')?.textContent?.trim() || null,
+      n_uts:         batchFmt.length,
+      result:        { resultados: batchFmt },
+    });
   }
 
   const nErros = errosList.length;
@@ -1544,6 +1655,106 @@ async function calcularArquivoLote() {
     showToast(`${total - nErros} de ${total} feições calculadas (${nErros} com erro)`, 'warn');
   else
     showToast(`${total} feições calculadas — clique em uma para ver o resultado`, 'ok');
+}
+
+/**
+ * Calcula TODAS as subfases de uma vez para a UT/geometria atual,
+ * chamando /api/calcular/mi e exibindo o resultado consolidado.
+ */
+async function calcularTodasSubfases() {
+  const loading = document.getElementById('loading');
+  const btnCalc = document.getElementById('btn-calcular');
+  btnCalc.disabled = true;
+  loading.classList.remove('hidden');
+  closeResultPanel();
+
+  try {
+    const lpKey = getLpKey();
+    let reqBody;
+    if (currentUtId) {
+      reqBody = { ut_ids: [currentUtId] };
+      if (currentDenominadorEscala) reqBody.denominador_escala = currentDenominadorEscala;
+    } else if (currentGeojson && !currentGeojson._multi) {
+      // Modo arquivo (feição única) ou mapa manual
+      reqBody = {
+        geom_geojson:        [currentGeojson],
+        denominador_escala:  currentDenominadorEscala || 25000,
+      };
+    } else if (_arquivoSelectedIndices.size > 0) {
+      // Modo arquivo multi-feição: coleta as geometrias selecionadas
+      const geoms = [..._arquivoSelectedIndices].map(i => _arquivoFeatures[i]?.geojson).filter(Boolean);
+      if (!geoms.length) throw new Error('Nenhuma geometria disponível.');
+      reqBody = {
+        geom_geojson:        geoms,
+        denominador_escala:  currentDenominadorEscala || 25000,
+      };
+    } else {
+      throw new Error('Nenhuma geometria disponível.');
+    }
+    // Passa LP explícita se disponível (modo arquivo/mapa), senão backend detecta via SAP
+    if (lpKey) reqBody.lp_keys = [lpKey];
+    if (curvaNivelToken) reqBody.curva_nivel_token = curvaNivelToken;
+
+    const res = await fetch('/api/calcular/mi', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(reqBody),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.erro || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    const lp = data.lps?.[0];
+    if (!lp) throw new Error('Sem dados de LP na resposta do servidor.');
+
+    // Converte a resposta MI para o formato esperado por renderResultado
+    const por_subfase = {};
+    const por_camada  = [];
+    let n_metricas    = 0;
+    Object.entries(lp.subfases || {}).forEach(([key, sf]) => {
+      por_subfase[key] = sf.pts ?? 0;
+      if (sf.pts > 0) n_metricas++;
+      (sf.por_camada || []).forEach(c => por_camada.push({ ...c, subfase: key }));
+    });
+
+    const synth = {
+      subfase_key:        '__all__',
+      score_total:        lp.total,
+      por_subfase,
+      por_camada,
+      denominador_escala: data.escala    || null,
+      mult_escala:        data.mult_escala || null,
+      lp_mapeamento:      lp.key,
+      lp_nome:            lp.nome,
+      n_metricas_brutas:  n_metricas,
+      avisos_query:       [],
+      ut_id:              currentUtId || null,
+    };
+
+    lastResult = synth;
+    renderResultado(synth);
+    openResultPanel();
+
+    GECalcStore.save({
+      tipo:          'single',
+      label:         `${currentUtNome || 'UT'} · Todas as subfases`,
+      subfase_key:   '__all__',
+      subfase_nome:  'Todas as subfases',
+      score:         lp.total,
+      escala:        data.escala || null,
+      lp_mapeamento: lp.key,
+      banco:         document.getElementById('db-badge')?.textContent?.trim() || null,
+      n_uts:         null,
+      result:        synth,
+    });
+  } catch (err) {
+    showToast(`Erro ao calcular todas as subfases: ${err.message}`, 'error');
+  } finally {
+    btnCalc.disabled = false;
+    loading.classList.add('hidden');
+    updateCalcBtn();
+  }
 }
 
 /**
@@ -1580,7 +1791,7 @@ function _renderArquivoBatchMap(results) {
     }
 
     // Reaplica estilo e remove handlers anteriores
-    lyr.setStyle({ color: '#fff', weight: 1.5, fillColor: color, fillOpacity: 0.55, opacity: 0.7 });
+    lyr.setStyle({ color, weight: 1.5, fillColor: color, fillOpacity: 0.65, opacity: 1 });
     lyr.bindTooltip(tipHtml, { sticky: true });
     lyr.off('mouseover').off('mouseout').off('click');
 
@@ -1604,11 +1815,114 @@ function _renderArquivoBatchMap(results) {
   if (scores.length > 1) showLegend(minS, maxS);
 }
 
+// ── Cálculo em lote "todas as subfases" — chama /api/calcular/mi por UT ─
+async function calcularLoteTodasSubfases() {
+  const pool = markedUtIds.size > 0
+    ? allUTs.filter(u => markedUtIds.has(u.id))
+    : getUtsFiltradas();
+
+  if (!pool.length) { showToast('Nenhuma UT selecionada.', 'warn'); return; }
+
+  const btnCalc  = document.getElementById('btn-calcular');
+  const progEl   = document.getElementById('lote-progress');
+  const progFill = document.getElementById('progress-fill');
+  const progTx   = document.getElementById('progress-text');
+
+  btnCalc.disabled = true;
+  progEl.classList.remove('hidden');
+  progFill.style.width = '2%';
+  progTx.textContent   = `Calculando todas as subfases — 0 / ${pool.length} UTs…`;
+
+  const resultados = [];
+  const erros      = [];
+
+  for (let i = 0; i < pool.length; i++) {
+    const ut = pool[i];
+    progFill.style.width = `${Math.round(((i + 0.5) / pool.length) * 100)}%`;
+    progTx.textContent   = `Calculando subfases — UT ${i + 1} / ${pool.length}: ${ut.nome || ut.id}…`;
+
+    try {
+      const res = await fetch('/api/calcular/mi', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ut_ids: [ut.id] }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.erro || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const lp   = data.lps?.[0];
+      if (!lp) throw new Error('Sem dados de LP na resposta.');
+
+      // Converte para o formato de resultado do lote (compatível com renderRanking)
+      const por_subfase = Object.fromEntries(
+        Object.entries(lp.subfases || {}).map(([k, v]) => [k, v.pts ?? 0])
+      );
+      const por_camada = Object.values(lp.subfases || {}).flatMap(v => v.por_camada || []);
+
+      resultados.push({
+        ut_id:              ut.id,
+        nome:               ut.nome,
+        // data.geom vem do /api/calcular/mi como GeoJSON da UT (união de 1 UT = geom própria)
+        geom:               data.geom || null,
+        subfase_key:        '__all__',
+        denominador_escala: data.escala || null,
+        lp_mapeamento:      lp.key,
+        lp_nome:            lp.nome,
+        score_total:        lp.total,
+        por_subfase,
+        por_camada,
+        mult_escala:        data.mult_escala || null,
+        n_metricas_brutas:  Object.values(lp.subfases || {}).filter(v => (v.pts ?? 0) > 0).length,
+        avisos_query:       [],
+      });
+    } catch (e) {
+      erros.push({ ut_id: ut.id, nome: ut.nome, erro: e.message });
+    }
+
+    progFill.style.width = `${Math.round(((i + 1) / pool.length) * 100)}%`;
+  }
+
+  // Ordena decrescente por total
+  resultados.sort((a, b) => b.score_total - a.score_total);
+
+  lastBatchResultados = resultados;
+  renderBatchMap(resultados);
+  renderRanking(resultados, erros);
+  document.getElementById('btn-ver-ranking').classList.remove('hidden');
+
+  // Auto-save
+  if (resultados.length) {
+    GECalcStore.save({
+      tipo:          'batch',
+      label:         `Lote — ${resultados.length} UTs · Total (todas subfases)`,
+      subfase_key:   '__all__',
+      subfase_nome:  'Total (todas as subfases)',
+      score:         resultados.reduce((s, r) => s + r.score_total, 0),
+      escala:        resultados[0]?.denominador_escala ?? null,
+      lp_mapeamento: resultados[0]?.lp_mapeamento ?? null,
+      banco:         document.getElementById('db-badge')?.textContent?.trim() || null,
+      n_uts:         resultados.length,
+      result:        { resultados },
+    });
+  }
+
+  progEl.classList.add('hidden');
+  progFill.style.width = '0%';
+  btnCalc.disabled = false;
+  updateCalcBtn();
+}
+
 // ── Cálculo em lote acionado pelo botão principal ─────────────────────
 async function calcularPorFiltro() {
   const sfKey = filterSf.value || null;
   // Keys "id_N" são apenas para filtro visual — o backend não as conhece.
   const sfKeyParaApi = (sfKey && !sfKey.startsWith('id_')) ? sfKey : null;
+
+  // Modo "Calcular todas as subfases (total)"
+  const chkTodas     = document.getElementById('chk-todas-subfases');
+  const todasSf      = chkTodas?.checked ?? false;
 
   // Prioridade: UTs marcadas > todas as filtradas
   const pool = markedUtIds.size > 0
@@ -1631,7 +1945,11 @@ async function calcularPorFiltro() {
 
   try {
     const reqBody = { ut_ids: utIds };
-    if (sfKeyParaApi)    reqBody.subfase_key       = sfKeyParaApi;
+    if (todasSf) {
+      reqBody.todas_subfases = true;               // backend calcula todas as subfases por UT
+    } else if (sfKeyParaApi) {
+      reqBody.subfase_key = sfKeyParaApi;
+    }
     if (curvaNivelToken) reqBody.curva_nivel_token = curvaNivelToken;
 
     const res = await fetch('/api/calcular/lote', {
@@ -1678,6 +1996,27 @@ async function calcularPorFiltro() {
           renderRanking(lastBatchResultados, msg.erros ?? []);
           document.getElementById('btn-ver-ranking').classList.remove('hidden');
           progFill.style.width = '100%';
+          // Auto-save no histórico
+          if (lastBatchResultados.length) {
+            const sfNomeL = lastBatchResultados[0]?.subfase_key === '__all__'
+              ? 'Total (todas as subfases)'
+              : (allSubfases.find(s => s.key === lastBatchResultados[0]?.subfase_key)?.nome
+                 || lastBatchResultados[0]?.subfase_key || '–');
+            const loteNome = allUTs.find(u => u.lote_id === lastBatchResultados[0]?.lote_id)?.lote_nome
+                           || lastBatchResultados[0]?.lote_nome || 'Lote';
+            GECalcStore.save({
+              tipo:          'batch',
+              label:         `${loteNome} — ${lastBatchResultados.length} UTs · ${sfNomeL}`,
+              subfase_key:   lastBatchResultados[0]?.subfase_key ?? null,
+              subfase_nome:  sfNomeL,
+              score:         lastBatchResultados.reduce((s, r) => s + subtotalPts(r), 0),
+              escala:        lastBatchResultados[0]?.denominador_escala ?? null,
+              lp_mapeamento: lastBatchResultados[0]?.lp_mapeamento ?? null,
+              banco:         document.getElementById('db-badge')?.textContent?.trim() || null,
+              n_uts:         lastBatchResultados.length,
+              result:        { resultados: lastBatchResultados },
+            });
+          }
         } else if (msg.tipo === 'erro') {
           throw new Error(msg.erro);
         }
@@ -1699,8 +2038,11 @@ document.getElementById('btn-fechar-resultado').addEventListener('click', () => 
 
 // ── Renderizar resultado individual ───────────────────────────────────
 function renderResultado(result) {
-  const sfNome = allSubfases.find(s => s.key === result.subfase_key)?.nome
-               || result.subfase_key || 'Todas as subfases';
+  const isAllSubfases = result.subfase_key === '__all__';
+  const sfNome = isAllSubfases
+    ? 'Todas as subfases'
+    : (allSubfases.find(s => s.key === result.subfase_key)?.nome
+       || result.subfase_key || 'Todas as subfases');
 
   // Limpar vetores anteriores ao abrir novo resultado
   if (vetoresAtivos) { vetoresLayer.clearLayers(); vetoresAtivos = false; }
@@ -1708,9 +2050,12 @@ function renderResultado(result) {
   document.getElementById('resultado-nome').textContent  = currentUtNome;
   document.getElementById('resultado-subfase').textContent = sfNome;
 
-  // Score de exibição = subtotal sem Verificação Final
+  // Score de exibição:
+  //   - Modo "todas subfases" → score_total (inclui VF)
+  //   - Subfase VF individual → score_total
+  //   - Demais → soma por_subfase excluindo VF
   const isVfSubfase = result.subfase_key === 'verificacao_final';
-  const displayScore = isVfSubfase
+  const displayScore = (isAllSubfases || isVfSubfase)
     ? result.score_total
     : Object.entries(result.por_subfase || {})
         .filter(([k]) => k !== 'verificacao_final')
@@ -1730,8 +2075,9 @@ function renderResultado(result) {
   if (gaugeEl) gaugeEl.innerHTML = buildGaugeSVG(gaugePct, gaugeColor);
 
   // Denominador para barras
+  // Em modo "todas subfases" inclui VF; em modo individual inclui VF só se for a subfase escolhida
   const sfEntries = Object.entries(result.por_subfase || {})
-    .filter(([key, pts]) => pts > 0 && (key !== 'verificacao_final' || isVfSubfase));
+    .filter(([key, pts]) => pts > 0 && (key !== 'verificacao_final' || isVfSubfase || isAllSubfases));
   const barTotal = sfEntries.reduce((s, [, v]) => s + v, 0) || 1;
 
   // Escala
@@ -1978,14 +2324,11 @@ async function toggleVetores(utId, sfKey, lpKey, geomRef) {
 
 // ── Mapa — visualização do lote ───────────────────────────────────────
 function scoreColor(t) {
-  // azul → amarelo → vermelho
-  if (t < 0.5) {
-    const g = Math.round(150 + t * 2 * 105);
-    return `rgb(30,${g},220)`;
-  }
-  const r = Math.round(200 + (t - 0.5) * 2 * 55);
-  const g = Math.round(200 - (t - 0.5) * 2 * 170);
-  return `rgb(${r},${g},30)`;
+  // verde (baixo) → amarelo (médio) → vermelho (alto)
+  // Paleta HSL totalmente saturada e de luminosidade média — legível sobre
+  // qualquer fundo (OSM claro, Google Híbrido escuro, terreno, etc.)
+  const hue = Math.round(120 - t * 120);   // 120° verde → 60° amarelo → 0° vermelho
+  return `hsl(${hue}, 95%, 44%)`;
 }
 
 function renderBatchMap(resultados) {
@@ -2004,13 +2347,15 @@ function renderBatchMap(resultados) {
     const pts    = subtotalPts(r);
     const t      = maxS > minS ? (pts - minS) / (maxS - minS) : 0.5;
     const color  = scoreColor(t);
-    const sfNome = allSubfases.find(s => s.key === r.subfase_key)?.nome ?? r.subfase_key ?? '–';
+    const sfNome = r.subfase_key === '__all__'
+      ? 'Total (todas subfases)'
+      : (allSubfases.find(s => s.key === r.subfase_key)?.nome ?? r.subfase_key ?? '–');
     const escStr = r.denominador_escala
       ? `1:${Number(r.denominador_escala).toLocaleString('pt-BR')}` : '–';
     const ptsStr = pts.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 
     L.geoJSON({ type: 'Feature', geometry: r.geom, properties: { ut_id: r.ut_id } }, {
-      style: { color: '#fff', weight: 1, fillColor: color, fillOpacity: 0.55, opacity: 0.5 },
+      style: { color, weight: 1.5, fillColor: color, fillOpacity: 0.65, opacity: 1 },
     })
     .bindTooltip(
       `<strong>${r.nome ?? `UT ${r.ut_id}`}</strong><br>` +
@@ -2043,6 +2388,8 @@ function mostrarResultadoNoPopup(result) {
  */
 function subtotalPts(r) {
   if (!r) return 0;
+  // Modo "todas subfases": usa score_total diretamente (inclui Verificação Final)
+  if (r.subfase_key === '__all__') return r.score_total ?? 0;
   if (r.por_subfase) {
     return Object.entries(r.por_subfase)
       .filter(([k]) => k !== 'verificacao_final')
@@ -2153,18 +2500,22 @@ function renderRanking(resultados, erros) {
       </div>
     </div>`;
 
+  const modoTotal = resultados.length > 0 && resultados[0].subfase_key === '__all__';
   const linhas = resultados.map((r, i) => {
     const pts     = subtotalPts(r);
     const pct     = Math.round((pts / maxPts) * 100);
     const escStr  = r.denominador_escala
       ? `1:${Number(r.denominador_escala).toLocaleString('pt-BR')}` : '–';
-    const sfNome  = sfNomes[r.subfase_key] ?? r.subfase_key ?? '–';
+    const sfNome  = r.subfase_key === '__all__'
+      ? '<span style="color:var(--c-accent,#4fc3f7);font-weight:600">Total</span>'
+      : (sfNomes[r.subfase_key] ?? r.subfase_key ?? '–');
     const rankCls = i === 0 ? ' rank-1' : i === 1 ? ' rank-2' : i === 2 ? ' rank-3' : '';
+    const barColor = modoTotal ? 'var(--c-accent,#4fc3f7)' : '';
     return `<tr class="${rankCls}">
       <td class="rank-pos">${i + 1}</td>
       <td>
         <span style="font-weight:600">${r.nome ?? `UT ${r.ut_id}`}</span>
-        <span class="rank-bar" style="width:${pct}%"></span>
+        <span class="rank-bar" style="width:${pct}%${barColor ? `;background:${barColor}` : ''}"></span>
       </td>
       <td style="font-size:11px;color:#78909c">${escStr}</td>
       <td style="font-size:11px;color:#78909c;max-width:160px;overflow:hidden;
@@ -2563,18 +2914,36 @@ function updateCalcBtn() {
     }
   }
 
-  // Texto do botão — modo arquivo tem prioridade sobre marcadas do SAP
+  // Mostrar/ocultar checkbox "todas as subfases" — só faz sentido no modo lote SAP
+  const todasSfRow   = document.getElementById('todas-sf-row');
+  const chkTodas     = document.getElementById('chk-todas-subfases');
+  const modoLoteSap  = !modoArquivoMapa && !currentUtId && (temMarcadas || temFiltro);
+  if (todasSfRow) {
+    todasSfRow.classList.toggle('hidden', !modoLoteSap);
+    todasSfRow.classList.toggle('checked', !!chkTodas?.checked);
+  }
+
+  // Texto do botão
+  const isAll     = currentSubfaseKey === '__all__';
+  const todasAtivo = modoLoteSap && (chkTodas?.checked ?? false);
   if (modoArquivoMapa) {
     const n = _arquivoSelectedIndices.size;
-    btn.textContent = n > 1
-      ? `⚡ Calcular ${n} feições`
-      : '⚡ Calcular Pontos';
+    if (isAll)
+      btn.textContent = n > 1 ? `✦ Calcular Total (${n} feições)` : '✦ Calcular Total (todas subfases)';
+    else
+      btn.textContent = n > 1 ? `⚡ Calcular ${n} feições` : '⚡ Calcular Pontos';
+  } else if (isAll) {
+    btn.textContent = '✦ Calcular Total (todas subfases)';
   } else if (temMarcadas) {
     const n = markedUtIds.size;
-    btn.textContent = `⚡ Calcular ${n} marcada${n > 1 ? 's' : ''}`;
+    btn.textContent = todasAtivo
+      ? `✦ Calcular Total (${n} UT${n > 1 ? 's' : ''})`
+      : `⚡ Calcular ${n} marcada${n > 1 ? 's' : ''}`;
   } else if (!currentUtId && !currentGeojson && temFiltro) {
     const n = getUtsFiltradas().length;
-    btn.textContent = `⚡ Calcular ${n} UT${n !== 1 ? 's' : ''}`;
+    btn.textContent = todasAtivo
+      ? `✦ Calcular Total (${n} UT${n !== 1 ? 's' : ''})`
+      : `⚡ Calcular ${n} UT${n !== 1 ? 's' : ''}`;
   } else {
     btn.textContent = '⚡ Calcular Pontos';
   }

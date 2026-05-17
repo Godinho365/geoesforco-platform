@@ -110,7 +110,11 @@
           <span id="subfase-sap-lp" class="subfase-lp-chip hidden"></span>
           <span id="subfase-sap-nome" class="subfase-nome"></span>
         </div>
-        <button id="btn-trocar-subfase" class="btn-link">Trocar</button>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:2px">
+          <button id="btn-trocar-subfase" class="btn-link">Trocar</button>
+          <span style="color:var(--c-border,#1a3358)">|</span>
+          <button id="btn-calcular-total-sap" class="btn-link" title="Calcular pontuação total somando todas as subfases">✦ Total</button>
+        </div>
       </div>
 
       <div id="subfase-selector">
@@ -204,6 +208,11 @@
         <span id="dif-status" class="dif-status"></span>
       </div>
 
+      <label id="todas-sf-row" class="todas-sf-label hidden" title="Calcula todas as subfases por UT e exibe o total no ranking">
+        <input type="checkbox" id="chk-todas-subfases">
+        <span>Calcular total (todas as subfases)</span>
+      </label>
+
       <button id="btn-calcular" class="btn-action btn-calc" disabled>⚡ Calcular Pontos</button>
       <p id="calc-hint" class="calc-hint"></p>
       <div id="lote-progress" class="hidden">
@@ -224,14 +233,15 @@
     <!-- Topbar (L3) -->
     <div id="topbar">
       <div class="tb-left">
-        <span id="tb-db-chip" class="tb-chip">–</span>
-        <span id="tb-health-dot" class="tb-dot tb-dot-ok" title="Banco OK"></span>
-      </div>
-      <div class="tb-right">
         <a href="/unidades.html" class="tb-btn" title="Consultar Unidades de Trabalho" target="_blank">⊞ UTs</a>
         <a href="/notas.html" class="tb-btn" title="Notas de Atividades" target="_blank">📊 Notas</a>
         <a href="/mi_calc.html" class="tb-btn" title="Calcular Comparação" target="_blank">⚖ Comparação</a>
+        <a href="/calculos.html" class="tb-btn" title="Meus Cálculos" target="_blank">📋 Cálculos</a>
         <button id="tb-btn-formulas" class="tb-btn" title="Fórmulas e Pesos">⚖ Fórmulas</button>
+      </div>
+      <div class="tb-right">
+        <span id="tb-db-chip" class="tb-chip">–</span>
+        <span id="tb-health-dot" class="tb-dot tb-dot-ok" title="Banco OK"></span>
       </div>
     </div>
 

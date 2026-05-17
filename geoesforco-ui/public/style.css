@@ -172,11 +172,11 @@ body {
   height: 10px;
   border-radius: 4px;
   background: linear-gradient(to right,
-    rgb(30,150,220)  0%,
-    rgb(30,255,220) 46%,
-    rgb(200,200,30) 54%,
-    rgb(255,115,30) 78%,
-    rgb(255,30,30)  100%
+    hsl(120, 95%, 44%)   0%,   /* verde  — baixo  */
+    hsl( 80, 95%, 44%)  25%,
+    hsl( 60, 95%, 44%)  50%,   /* amarelo — médio */
+    hsl( 30, 95%, 44%)  75%,
+    hsl(  0, 95%, 44%) 100%    /* vermelho — alto */
   );
   margin-bottom: 5px;
 }
@@ -922,6 +922,26 @@ body {
   min-height: 14px;
   text-align: center;
 }
+
+/* ── Checkbox "Calcular todas as subfases" ── */
+.todas-sf-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--c-muted, #546e7a);
+  cursor: pointer;
+  padding: 5px 0 4px;
+  user-select: none;
+  transition: color .15s;
+}
+.todas-sf-label:hover { color: var(--c-accent, #4fc3f7); }
+.todas-sf-label.hidden { display: none !important; }
+.todas-sf-label input[type="checkbox"] {
+  accent-color: var(--c-accent, #4fc3f7);
+  width: 14px; height: 14px; cursor: pointer; flex-shrink: 0;
+}
+.todas-sf-label.checked { color: var(--c-accent, #4fc3f7); font-weight: 600; }
 
 /* ── D2 · Stat chips ── */
 .stat-chips {

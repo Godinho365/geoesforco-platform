@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meus Cálculos — GeoEsforço</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+/* ══════════════════════════════════════════════════════════
+   BASE
+══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+:root {
+  --bg:      #0d1b2a;
+  --bg2:     #111d35;
+  --bg3:     #0a1628;
+  --border:  #1a3358;
+  --accent:  #4fc3f7;
+  --accent2: #26c6da;
+  --text:    #cfd8dc;
+  --muted:   #546e7a;
+  --success: #66bb6a;
+  --warn:    #ffa726;
+  --danger:  #ef5350;
+  --purple:  #ab47bc;
+}
+body { background: var(--bg); color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px;
+  display: flex; flex-direction: column; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input, select, textarea { font-family: inherit; }
+.hidden { display: none !important; }
+
+/* ══════════════════════════════════════════════════════════
+   HEADER
+══════════════════════════════════════════════════════════ */
+header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 14px; height: 44px; flex-shrink: 0;
+  background: rgba(8,16,34,.95); backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border); z-index: 300;
+}
+.h-logo-img  { height: 26px; width: auto; object-fit: contain; }
+.h-logo-mark { width: 26px; height: 26px; border-radius: 5px; background: var(--accent); color: #0d1b2a; font-weight: 900; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.h-title  { font-size: 14px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.h-sep    { flex: 1; }
+.h-nav-link { padding: 4px 9px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 11px; transition: all .15s; white-space: nowrap; }
+.h-nav-link:hover { border-color: var(--accent); color: var(--accent); }
+.h-back { padding: 4px 11px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 11px; transition: all .15s; }
+.h-back:hover { background: rgba(79,195,247,.1); color: var(--accent); border-color: var(--accent); }
+
+/* ══════════════════════════════════════════════════════════
+   STATS BAR (abaixo do header)
+══════════════════════════════════════════════════════════ */
+#stats-bar {
+  display: flex; align-items: stretch; gap: 0;
+  background: rgba(8,16,34,.7); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; overflow-x: auto;
+}
+#stats-bar::-webkit-scrollbar { height: 0; }
+.stat-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 7px 18px; gap: 2px; border-right: 1px solid var(--border);
+  min-width: 100px; flex-shrink: 0;
+}
+.stat-item:last-child { border-right: none; flex: 1; }
+.si-val { font-size: 18px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.si-lbl { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+.si-trend { font-size: 9px; margin-top: 1px; }
+.si-trend.up   { color: var(--success); }
+.si-trend.down { color: var(--danger); }
+.si-trend.neu  { color: var(--muted); }
+
+/* ══════════════════════════════════════════════════════════
+   LAYOUT PRINCIPAL
+══════════════════════════════════════════════════════════ */
+#app { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+/* ── Painel esquerdo ── */
+#left-panel {
+  width: 360px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: rgba(8,16,34,.4);
+  overflow: hidden;
+}
+
+/* tabs */
+.panel-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.p-tab {
+  flex: 1; padding: 8px 4px; font-size: 11px; font-weight: 600;
+  color: var(--muted); border-bottom: 2px solid transparent;
+  transition: all .15s; background: none; cursor: pointer;
+  letter-spacing: .2px;
+}
+.p-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.p-tab:hover:not(.active) { color: var(--text); }
+
+.tab-pane { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.tab-pane.active { display: flex; }
+
+/* ── Filtros ── */
+#filter-bar {
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
+  background: rgba(8,16,34,.5); flex-shrink: 0; display: flex; flex-direction: column; gap: 6px;
+}
+.f-row   { display: flex; gap: 6px; align-items: center; }
+.f-sel, .f-inp {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text); padding: 4px 8px; font-size: 11px;
+}
+.f-sel { flex-shrink: 0; }
+.f-inp { flex: 1; }
+.f-sel:focus, .f-inp:focus { outline: none; border-color: var(--accent); }
+.f-count { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+
+/* action buttons */
+.action-btns { display: flex; gap: 5px; flex-wrap: wrap; }
+.ab {
+  background: rgba(26,51,88,.6); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--muted); font-size: 10px; padding: 3px 8px;
+  transition: all .15s; white-space: nowrap;
+}
+.ab:hover          { border-color: var(--accent); color: var(--accent); }
+.ab.danger:hover   { border-color: var(--danger);  color: var(--danger); }
+.ab.success:hover  { border-color: var(--success); color: var(--success); }
+
+/* ── Card list ── */
+#card-list {
+  flex: 1; overflow-y: auto; padding: 8px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+#card-list::-webkit-scrollbar { width: 4px; }
+#card-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── Card ── */
+.calc-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 7px;
+  overflow: hidden; transition: border-color .15s, background .15s; cursor: pointer;
+  position: relative;
+}
+.calc-card:hover  { border-color: rgba(79,195,247,.4); background: rgba(17,29,53,.9); }
+.calc-card.active { border-color: var(--accent); background: rgba(79,195,247,.06); }
+.calc-card.fav    { border-color: rgba(255,167,38,.45); }
+.calc-card.fav .card-fav { color: var(--warn); }
+.calc-card.comparing { border-color: var(--purple); background: rgba(171,71,188,.06); }
+
+.card-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.card-row1 { display: flex; align-items: center; gap: 6px; }
+.badge-tipo {
+  padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 700;
+  letter-spacing: .4px; white-space: nowrap; flex-shrink: 0;
+}
+.badge-single { background: rgba(79,195,247,.15);  color: var(--accent); border: 1px solid rgba(79,195,247,.3); }
+.badge-batch  { background: rgba(171,71,188,.15);  color: var(--purple); border: 1px solid rgba(171,71,188,.3); }
+.badge-mi     { background: rgba(255,167,38,.15);  color: var(--warn);   border: 1px solid rgba(255,167,38,.3); }
+.card-label   { flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-score   { font-weight: 800; color: var(--accent); font-size: 12px; flex-shrink: 0; }
+.card-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.card-fav, .card-del, .card-cmp {
+  padding: 1px 4px; font-size: 11px; line-height: 1;
+  color: var(--muted); transition: color .12s; border-radius: 3px;
+}
+.card-fav:hover { color: var(--warn); }
+.card-del:hover { color: var(--danger); }
+.card-cmp:hover { color: var(--purple); }
+.card-cmp.active { color: var(--purple); }
+
+.card-row2 { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.card-chip { background: rgba(26,51,88,.8); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; font-size: 9px; color: var(--muted); }
+.card-chip.hi { border-color: rgba(79,195,247,.3); color: var(--accent); }
+.card-date { font-size: 9px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+
+/* nota preview */
+.card-nota { font-size: 10px; color: var(--muted); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-top: 2px; border-top: 1px solid rgba(26,51,88,.4); }
+
+/* ── Empty state ── */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 40px 20px; color: var(--muted); text-align: center; flex: 1;
+}
+.empty-icon { font-size: 36px; opacity: .3; }
+.empty-msg  { font-size: 13px; }
+.empty-hint { font-size: 11px; line-height: 1.6; opacity: .7; max-width: 240px; }
+
+/* ══════════════════════════════════════════════════════════
+   TAB ESTATÍSTICAS
+══════════════════════════════════════════════════════════ */
+#tab-stats { overflow-y: auto; padding: 12px; gap: 14px; }
+#tab-stats::-webkit-scrollbar { width: 4px; }
+#tab-stats::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.chart-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 7px;
+  padding: 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.chart-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+.chart-svg-wrap { width: 100%; overflow: hidden; }
+
+/* barras das top subfases */
+.tsf-row { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.tsf-name { font-size: 10px; color: var(--text); width: 110px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tsf-bar-wrap { flex: 1; height: 8px; background: rgba(26,51,88,.7); border-radius: 4px; overflow: hidden; }
+.tsf-bar-fill { height: 100%; border-radius: 4px; transition: width .5s cubic-bezier(.4,0,.2,1); }
+.tsf-count { font-size: 10px; color: var(--muted); width: 22px; text-align: right; flex-shrink: 0; }
+
+/* distribuição de tipos */
+.type-dist-bar { display: flex; height: 18px; border-radius: 4px; overflow: hidden; gap: 0; }
+.tdb-seg { height: 100%; transition: width .5s; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: rgba(0,0,0,.7); }
+.type-dist-legend { display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap; }
+.tdl-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+.tdl-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* top/bot UTs */
+.rank-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(26,51,88,.4); }
+.rank-item:last-child { border-bottom: none; }
+.rank-pos  { font-size: 10px; color: var(--muted); width: 16px; flex-shrink: 0; }
+.rank-lbl  { flex: 1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-score { font-size: 11px; font-weight: 700; flex-shrink: 0; }
+
+/* ══════════════════════════════════════════════════════════
+   ÁREA DE MAPA
+══════════════════════════════════════════════════════════ */
+#main-area { flex: 1; display: flex; min-width: 0; position: relative; }
+#map-wrap  { flex: 1; min-width: 0; position: relative; }
+#map       { width: 100%; height: 100%; }
+
+#map-hint {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  pointer-events: none; z-index: 400;
+  background: rgba(8,16,34,.85); backdrop-filter: blur(10px);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px 30px; text-align: center; color: var(--muted);
+}
+.hint-icon { font-size: 30px; margin-bottom: 6px; opacity: .4; }
+.hint-txt  { font-size: 12px; }
+
+/* compare banner */
+#cmp-banner {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 500; background: rgba(171,71,188,.18); backdrop-filter: blur(8px);
+  border: 1px solid rgba(171,71,188,.5); border-radius: 8px;
+  padding: 6px 14px; display: flex; align-items: center; gap: 10px;
+  font-size: 11px; color: var(--purple); white-space: nowrap;
+}
+#cmp-banner button { color: var(--muted); font-size: 13px; }
+#cmp-banner button:hover { color: var(--danger); }
+
+/* ══════════════════════════════════════════════════════════
+   PAINEL DE RESULTADO (drawer direito)
+══════════════════════════════════════════════════════════ */
+#result-panel {
+  width: 0; overflow: hidden; flex-shrink: 0;
+  background: rgba(8,15,30,.97); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  transition: width .28s cubic-bezier(.4,0,.2,1);
+}
+#result-panel.open { width: 380px; }
+
+/* result tabs */
+#rp-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.rp-tab {
+  flex: 1; padding: 8px 4px; font-size: 11px; color: var(--muted);
+  border-bottom: 2px solid transparent; transition: all .15s; cursor: pointer;
+  font-weight: 600; background: none;
+}
+.rp-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.rp-tab:hover:not(.active) { color: var(--text); }
+#rp-close { padding: 0 10px; color: var(--muted); font-size: 16px; transition: color .15s; }
+#rp-close:hover { color: var(--danger); }
+
+.rp-pane { display: none; flex: 1; overflow-y: auto; padding: 12px; flex-direction: column; gap: 10px; }
+.rp-pane.active { display: flex; }
+.rp-pane::-webkit-scrollbar { width: 4px; }
+.rp-pane::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* score + gauge */
+.rp-score-row { display: flex; align-items: center; gap: 10px; }
+.rp-gauge     { flex-shrink: 0; }
+.rp-score-num { font-size: 28px; font-weight: 900; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.rp-score-lbl { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+/* stat chips */
+.stat-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.stat-chip  { background: var(--bg2); border: 1px solid var(--border); border-radius: 5px; padding: 4px 10px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.stat-n   { font-size: 12px; font-weight: 700; color: var(--text); }
+.stat-lbl { font-size: 9px; color: var(--muted); white-space: nowrap; }
+
+/* sf bars */
+.sf-section-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+.sf-bar-row   { margin-bottom: 7px; }
+.sf-bar-label { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.sf-bar-dot   { width: 7px; height: 7px; border-radius: 50%; background: var(--sf-c, var(--accent)); flex-shrink: 0; }
+.sf-bar-name  { flex: 1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-bar-pts   { font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.sf-bar-track { height: 5px; background: rgba(26,51,88,.8); border-radius: 3px; overflow: hidden; }
+.sf-bar-fill  { height: 100%; border-radius: 3px; background: var(--sf-c, var(--accent)); width: 0; transition: width .5s cubic-bezier(.4,0,.2,1); }
+
+/* notas */
+#nota-textarea {
+  width: 100%; min-height: 120px; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); padding: 8px 10px; font-size: 12px; resize: vertical; line-height: 1.5;
+}
+#nota-textarea:focus { outline: none; border-color: var(--accent); }
+#nota-save {
+  align-self: flex-end; background: rgba(79,195,247,.1);
+  border: 1px solid rgba(79,195,247,.3); border-radius: 5px;
+  color: var(--accent); font-size: 11px; padding: 4px 12px; transition: background .15s;
+}
+#nota-save:hover { background: rgba(79,195,247,.2); }
+.nota-hint { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+/* detalhes técnicos */
+.tech-row { display: flex; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(26,51,88,.4); font-size: 11px; }
+.tech-row:last-child { border-bottom: none; }
+.tech-key { color: var(--muted); width: 100px; flex-shrink: 0; }
+.tech-val { color: var(--text); word-break: break-all; }
+
+/* avisos */
+.rp-aviso { font-size: 10px; color: var(--warn); padding: 3px 0; border-bottom: 1px solid rgba(26,51,88,.4); }
+.rp-aviso:last-child { border-bottom: none; }
+
+/* comparação side-by-side */
+.cmp-cols { display: flex; gap: 8px; }
+.cmp-col  { flex: 1; min-width: 0; }
+.cmp-lbl  { font-size: 10px; font-weight: 700; text-align: center; padding: 4px; border-radius: 4px; margin-bottom: 8px; }
+.cmp-lbl.a { background: rgba(79,195,247,.12); color: var(--accent); }
+.cmp-lbl.b { background: rgba(171,71,188,.12); color: var(--purple); }
+.cmp-sf-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 10px; border-bottom: 1px solid rgba(26,51,88,.3); }
+.cmp-sf-name { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-right: 6px; }
+.cmp-sf-pts  { font-weight: 700; flex-shrink: 0; }
+.cmp-sf-pts.better { color: var(--success); }
+.cmp-sf-pts.worse  { color: var(--danger); }
+.cmp-total { font-weight: 800; font-size: 14px; text-align: center; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+.cmp-delta { text-align: center; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.cmp-delta.pos { color: var(--success); }
+.cmp-delta.neg { color: var(--danger); }
+
+/* Leaflet dark theme */
+.leaflet-container { background: #0a1628 !important; }
+.leaflet-control-attribution { background: rgba(8,16,34,.7) !important; color: #546e7a !important; font-size: 9px !important; }
+.leaflet-control-attribution a { color: #4fc3f7 !important; }
+.leaflet-bar a { background: rgba(13,27,42,.92) !important; color: #cfd8dc !important; border-color: #1a3358 !important; }
+.leaflet-bar a:hover { background: rgba(26,51,88,.9) !important; }
+.leaflet-control-layers { background: rgba(13,27,42,.92) !important; color: #cfd8dc !important; border-color: #1a3358 !important; font-size: 11px !important; }
+.leaflet-control-layers label { color: #cfd8dc !important; }
+
+/* Scrollbar global */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.anim-in { animation: fadeIn .2s ease forwards; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════ HEADER ══════════════════════════ -->
+<header>
+  <img src="logo.png" alt="GeoEsforço" class="h-logo-img"
+       onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <div class="h-logo-mark" style="display:none">GE</div>
+  <span class="h-title">📋 Meus Cálculos</span>
+  <div class="h-sep"></div>
+  <a href="/mi_calc.html" class="h-nav-link">⚖ Comparação</a>
+  <a href="/notas.html"   class="h-nav-link">📊 Notas</a>
+  <a href="/unidades.html" class="h-nav-link">⊞ UTs</a>
+  <a href="/"             class="h-back">← Calculadora</a>
+</header>
+
+<!-- ══════════════════════════ STATS BAR ══════════════════════════ -->
+<div id="stats-bar">
+  <div class="stat-item">
+    <span class="si-val" id="st-total" style="color:var(--accent)">0</span>
+    <span class="si-lbl">cálculos</span>
+  </div>
+  <div class="stat-item">
+    <span class="si-val" id="st-pts" style="color:var(--success)">0</span>
+    <span class="si-lbl">pts acumulados</span>
+  </div>
+  <div class="stat-item">
+    <span class="si-val" id="st-media" style="color:var(--accent2)">—</span>
+    <span class="si-lbl">score médio</span>
+  </div>
+  <div class="stat-item">
+    <span class="si-val" id="st-max" style="color:var(--warn)">—</span>
+    <span class="si-lbl">score máximo</span>
+  </div>
+  <div class="stat-item">
+    <span class="si-val" id="st-sf" style="color:var(--purple);font-size:13px">—</span>
+    <span class="si-lbl">subfase top</span>
+  </div>
+  <div class="stat-item" style="flex:1">
+    <span class="si-val" id="st-streak" style="color:var(--text);font-size:13px">—</span>
+    <span class="si-lbl">último cálculo</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════ APP ══════════════════════════ -->
+<div id="app">
+
+  <!-- ── Painel esquerdo ── -->
+  <div id="left-panel">
+    <div class="panel-tabs">
+      <button class="p-tab active" data-tab="historico">📁 Histórico</button>
+      <button class="p-tab" data-tab="stats">📊 Estatísticas</button>
+    </div>
+
+    <!-- TAB HISTÓRICO -->
+    <div class="tab-pane active" id="tab-historico">
+      <div id="filter-bar">
+        <div class="f-row">
+          <select class="f-sel" id="f-tipo">
+            <option value="">Todos</option>
+            <option value="single">Individual</option>
+            <option value="batch">Lote</option>
+            <option value="mi">MI</option>
+          </select>
+          <input class="f-inp" id="f-busca" placeholder="🔍 Buscar…" type="search">
+          <span class="f-count" id="f-count"></span>
+        </div>
+        <div class="f-row">
+          <select class="f-sel" id="f-ordem" style="flex:1">
+            <option value="recente">Mais recentes</option>
+            <option value="antigo">Mais antigos</option>
+            <option value="score_desc">Maior score</option>
+            <option value="score_asc">Menor score</option>
+            <option value="fav">⭐ Favoritos primeiro</option>
+          </select>
+        </div>
+        <div class="action-btns">
+          <button class="ab success" id="btn-importar">📥 Importar</button>
+          <button class="ab"         id="btn-exportar">⬇ JSON</button>
+          <button class="ab"         id="btn-exportar-csv">⬇ CSV</button>
+          <button class="ab danger"  id="btn-limpar">🗑 Limpar</button>
+        </div>
+      </div>
+      <div id="card-list"></div>
+    </div><!-- /tab-historico -->
+
+    <!-- TAB ESTATÍSTICAS -->
+    <div class="tab-pane" id="tab-stats">
+      <!-- Distribuição de tipos -->
+      <div class="chart-card">
+        <div class="chart-title">Distribuição por tipo</div>
+        <div id="type-dist-bar" class="type-dist-bar"></div>
+        <div id="type-dist-legend" class="type-dist-legend"></div>
+      </div>
+
+      <!-- Sparkline de pontuações -->
+      <div class="chart-card">
+        <div class="chart-title">Histórico de scores (últimos 30)</div>
+        <div class="chart-svg-wrap" id="sparkline-wrap"></div>
+      </div>
+
+      <!-- Top subfases -->
+      <div class="chart-card">
+        <div class="chart-title">Subfases mais calculadas</div>
+        <div id="top-sf-chart"></div>
+      </div>
+
+      <!-- Top scores -->
+      <div class="chart-card">
+        <div class="chart-title">Top 5 — maiores scores</div>
+        <div id="top-scores"></div>
+      </div>
+
+      <!-- Bancos usados -->
+      <div class="chart-card">
+        <div class="chart-title">Bancos mais usados</div>
+        <div id="bancos-chart"></div>
+      </div>
+    </div><!-- /tab-stats -->
+  </div><!-- /left-panel -->
+
+  <!-- ── Mapa + resultado ── -->
+  <div id="main-area">
+    <div id="map-wrap">
+      <div id="map"></div>
+      <div id="map-hint">
+        <div class="hint-icon">🗺</div>
+        <div class="hint-txt">Clique em um cálculo para visualizar</div>
+      </div>
+      <!-- banner de comparação -->
+      <div id="cmp-banner" class="hidden">
+        <span id="cmp-msg">Selecione um 2º cálculo para comparar</span>
+        <button id="cmp-cancel">✕</button>
+      </div>
+    </div>
+
+    <!-- Painel resultado -->
+    <div id="result-panel">
+      <div id="rp-tabs">
+        <button class="rp-tab active" data-rp="resultado">Resultado</button>
+        <button class="rp-tab"        data-rp="notas">📝 Notas</button>
+        <button class="rp-tab"        data-rp="detalhes">⚙ Detalhes</button>
+        <button id="rp-close">✕</button>
+      </div>
+      <div class="rp-pane active" id="rpp-resultado"></div>
+      <div class="rp-pane"        id="rpp-notas">
+        <span class="nota-hint">Anote observações sobre este cálculo. As notas ficam salvas no navegador.</span>
+        <textarea id="nota-textarea" placeholder="Escreva uma nota…"></textarea>
+        <button id="nota-save">💾 Salvar nota</button>
+      </div>
+      <div class="rp-pane"        id="rpp-detalhes"></div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- import input oculto -->
+<input type="file" id="import-input" accept=".json" style="display:none">
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   CONSTANTES
+════════════════════════════════════════════════════════════ */
+const SF_COLORS = {
+  ext_ferrovia:                    '#ef5350',
+  ext_hidrografia_altimetria:      '#29b6f6',
+  ext_toponimos:                   '#ab47bc',
+  ext_vias_deslocamento:           '#ff7043',
+  ext_elemento_hidrografico:       '#26c6da',
+  ext_area_sem_dados:              '#78909c',
+  ext_limites:                     '#ffca28',
+  ext_intersecao_hidro_transporte: '#42a5f5',
+  ext_area_edificada:              '#ff8a65',
+  ext_edificacao:                  '#ec407a',
+  ext_vegetacao:                   '#66bb6a',
+  ext_planimetria:                 '#ffa726',
+  verificacao_final:               '#26a69a',
+};
+
+/* ════════════════════════════════════════════════════════════
+   STORE
+════════════════════════════════════════════════════════════ */
+const GECalcStore = (() => {
+  const KEY = 'ge_calculos_v1';
+  const MAX = 150;
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(_) { return []; } }
+  function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch(_) {} }
+  function remove(id) { save(load().filter(e => e.id !== id)); }
+  function update(id, patch) {
+    const list = load();
+    const idx  = list.findIndex(e => e.id === id);
+    if (idx >= 0) { list[idx] = { ...list[idx], ...patch }; save(list); }
+  }
+  function clear() { localStorage.removeItem(KEY); }
+  function importList(arr) {
+    const cur = load();
+    const existIds = new Set(cur.map(e => e.id));
+    const novas = arr.filter(e => e.id && !existIds.has(e.id));
+    const merged = [...novas, ...cur].slice(0, MAX);
+    save(merged);
+    return novas.length;
+  }
+  return { load, update, remove, importList, clear };
+})();
+
+/* ════════════════════════════════════════════════════════════
+   UTILITÁRIOS
+════════════════════════════════════════════════════════════ */
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fmt = (v, dec = 0) => v == null || isNaN(+v) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: dec });
+const fmtBig = v => {
+  if (v >= 1e6) return (v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1}) + 'M';
+  if (v >= 1e3) return (v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:1}) + 'k';
+  return fmt(v);
+};
+
+function tempoRelativo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60000), h = Math.floor(min/60), d = Math.floor(h/24);
+  if (min < 1)  return 'agora';
+  if (min < 60) return `${min}min`;
+  if (h   < 24) return `${h}h`;
+  if (d   < 7)  return `${d}d`;
+  return new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' });
+}
+
+function sfShort(key) {
+  return (key || '').replace(/^ext_/,'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+}
+
+function animCount(el, to, dur = 700) {
+  const start = performance.now();
+  const step = ts => {
+    const p = Math.min((ts - start) / dur, 1);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(to * e).toLocaleString('pt-BR') + ' pts';
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function buildGauge(pct, color = '#4fc3f7') {
+  const r = 36, cx = 50, cy = 50;
+  const ang = Math.min(pct, 1) * 180;
+  const rad = (180 - ang) * Math.PI / 180;
+  const x = (cx + r * Math.cos(rad)).toFixed(1);
+  const y = (cy - r * Math.sin(rad)).toFixed(1);
+  return `<svg viewBox="0 0 100 55" width="72" height="40">
+    <path d="M14,50 A${r},${r} 0 0,1 86,50" fill="none" stroke="#1a3358" stroke-width="7" stroke-linecap="round"/>
+    <path d="M14,50 A${r},${r} 0 ${ang>180?1:0},1 ${x},${y}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function subtotalPts(r) {
+  if (!r?.por_subfase) return r?.score_total ?? 0;
+  return Object.entries(r.por_subfase)
+    .filter(([k]) => k !== 'verificacao_final')
+    .reduce((s,[,v]) => s+v, 0);
+}
+
+/* ════════════════════════════════════════════════════════════
+   MAPA
+════════════════════════════════════════════════════════════ */
+const map = L.map('map', { center: [-15,-52], zoom: 5, zoomControl: true });
+const osmL  = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' });
+const satL  = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom:21, attribution:'© Google' });
+osmL.addTo(map);
+L.control.layers({'OSM': osmL, 'Google Híbrido': satL}, {}, { position:'topright', collapsed:true }).addTo(map);
+const geomLayer = L.featureGroup().addTo(map);
+
+async function renderOnMap(entry) {
+  geomLayer.clearLayers();
+  document.getElementById('map-hint').classList.add('hidden');
+  const { tipo, result } = entry;
+
+  try {
+    if (tipo === 'single') {
+      if (entry.geom_geojson) {
+        addPoly(entry.geom_geojson, entry.label, fmt(entry.score) + ' pts', '#4fc3f7');
+      } else if (entry.ut_id || result?.ut_id) {
+        const f = await fetch(`/api/uts/${entry.ut_id ?? result.ut_id}`).then(r=>r.json());
+        if (f?.geometry) addPoly(f.geometry, f.properties?.nome || entry.label, fmt(entry.score) + ' pts', '#4fc3f7');
+      }
+    } else if (tipo === 'batch') {
+      const rs = result?.resultados || [];
+      const scores = rs.map(r => subtotalPts(r));
+      const minS = Math.min(...scores), maxS = Math.max(...scores);
+      rs.forEach(r => {
+        const geom = r.geom || r.geom_geojson;
+        if (!geom) return;
+        const pts = subtotalPts(r);
+        const t   = maxS > minS ? (pts-minS)/(maxS-minS) : 0.5;
+        const hue = Math.round(120 - t*120);
+        const c   = `hsl(${hue},95%,44%)`;
+        L.geoJSON({type:'Feature',geometry:geom,properties:{}},{
+          style:{color:c,weight:1.5,fillColor:c,fillOpacity:.6,opacity:1},
+        }).bindTooltip(`<strong>${esc(r.nome||'UT')}</strong><br>${fmt(pts)} pts`,{sticky:true}).addTo(geomLayer);
+      });
+      if (geomLayer.getLayers().length) map.fitBounds(geomLayer.getBounds(),{padding:[20,20]});
+      return;
+    } else if (tipo === 'mi') {
+      if (result?.geom) addPoly(result.geom, entry.label, fmt(result.lps?.[0]?.total??0)+' pts', '#ffa726');
+    }
+  } catch(e) { console.warn('[calculos] geom:', e.message); }
+
+  if (!geomLayer.getLayers().length) {
+    const h = document.getElementById('map-hint');
+    h.innerHTML = '<div class="hint-icon">⚠</div><div class="hint-txt">Geometria não disponível</div>';
+    h.classList.remove('hidden');
+  }
+}
+
+function addPoly(geom, label, score, color) {
+  L.geoJSON({type:'Feature',geometry:geom,properties:{}},{
+    style:{color,weight:2,fillColor:color,fillOpacity:.18,opacity:1},
+  }).bindTooltip(`<strong>${esc(label)}</strong><br>${esc(score)}`,{sticky:true}).addTo(geomLayer);
+  try { map.fitBounds(geomLayer.getBounds(),{padding:[30,30]}); } catch(_){}
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESULTADO — pane "Resultado"
+════════════════════════════════════════════════════════════ */
+function renderResultPane(entry) {
+  const pane = document.getElementById('rpp-resultado');
+  const { tipo, result, score, subfase_nome, escala } = entry;
+
+  if (tipo === 'single') {
+    const por    = result?.por_subfase || {};
+    const total  = Object.values(por).reduce((s,v)=>s+v,0);
+    const barMax = Math.max(...Object.values(por).filter((v,i)=>Object.keys(por)[i]!=='verificacao_final'),1);
+    const color  = SF_COLORS[result?.subfase_key] ?? '#4fc3f7';
+    const escStr = escala ? `1:${Number(escala).toLocaleString('pt-BR')}` : '–';
+    const maxAll = Math.max(...Object.values(por), 1);
+    const bars = Object.entries(por).sort(([,a],[,b])=>b-a).map(([k,v]) => {
+      const c = SF_COLORS[k] ?? '#4fc3f7';
+      const pct = (v/maxAll*100).toFixed(1);
+      const nome = k === 'verificacao_final' ? 'Verificação Final' : sfShort(k);
+      return `<div class="sf-bar-row" style="--sf-c:${c}">
+        <div class="sf-bar-label">
+          <span class="sf-bar-dot"></span>
+          <span class="sf-bar-name" title="${esc(nome)}">${esc(nome)}</span>
+          <span class="sf-bar-pts">${fmt(v,1)}</span>
+        </div>
+        <div class="sf-bar-track"><div class="sf-bar-fill" data-pct="${pct}"></div></div>
+      </div>`;
+    }).join('');
+    const avisos = (result?.avisos_query||[]);
+    pane.innerHTML = `
+      <div class="rp-score-row">
+        <div class="rp-gauge">${buildGauge(Math.min(score/2000,1), color)}</div>
+        <div><div class="rp-score-num" id="rp-score-anim">0 pts</div>
+          <div class="rp-score-lbl">${esc(subfase_nome||'–')} · ${esc(escStr)}</div></div>
+      </div>
+      <div class="stat-chips">
+        <div class="stat-chip"><span class="stat-n">${Object.keys(por).length}</span><span class="stat-lbl">subfases</span></div>
+        <div class="stat-chip"><span class="stat-n">${esc(escStr)}</span><span class="stat-lbl">escala</span></div>
+        ${entry.lp_mapeamento ? `<div class="stat-chip"><span class="stat-n" style="font-size:10px">${esc(entry.lp_mapeamento.replace('mapeamento_','').toUpperCase())}</span><span class="stat-lbl">LP</span></div>` : ''}
+      </div>
+      <div class="sf-section-title">Pontos por subfase</div>
+      ${bars}
+      ${avisos.length ? `<div class="sf-section-title" style="margin-top:8px">Avisos</div>${avisos.map(a=>`<div class="rp-aviso">⚠ ${esc(a)}</div>`).join('')}` : ''}
+    `;
+    const n = document.getElementById('rp-score-anim');
+    if (n) animCount(n, Math.round(score));
+    requestAnimationFrame(() => pane.querySelectorAll('.sf-bar-fill[data-pct]').forEach(el => { el.style.width = el.dataset.pct + '%'; }));
+    return;
+  }
+
+  if (tipo === 'batch') {
+    const rs    = result?.resultados || [];
+    const total = rs.reduce((s,r)=>s+subtotalPts(r),0);
+    const maxS  = Math.max(...rs.map(r=>subtotalPts(r)),1);
+    const rows  = rs.map(r => {
+      const pts = subtotalPts(r);
+      const pct = (pts/maxS*100).toFixed(1);
+      const hue = Math.round(120-(pts/maxS)*120);
+      const c   = `hsl(${hue},95%,44%)`;
+      return `<div class="sf-bar-row" style="--sf-c:${c}">
+        <div class="sf-bar-label">
+          <span class="sf-bar-name">${esc(r.nome||`UT ${r.ut_id}`)}</span>
+          <span class="sf-bar-pts">${fmt(pts,1)}</span>
+        </div>
+        <div class="sf-bar-track"><div class="sf-bar-fill" data-pct="${pct}"></div></div>
+      </div>`;
+    }).join('');
+    pane.innerHTML = `
+      <div class="rp-score-row"><div>
+        <div class="rp-score-num" id="rp-score-anim">0 pts</div>
+        <div class="rp-score-lbl">Total acumulado · ${rs.length} UTs</div>
+      </div></div>
+      <div class="stat-chips">
+        <div class="stat-chip"><span class="stat-n">${rs.length}</span><span class="stat-lbl">UTs</span></div>
+        ${entry.subfase_key ? `<div class="stat-chip"><span class="stat-n" style="font-size:10px">${esc(sfShort(entry.subfase_key))}</span><span class="stat-lbl">subfase</span></div>` : ''}
+        ${entry.escala ? `<div class="stat-chip"><span class="stat-n">1:${Number(entry.escala).toLocaleString('pt-BR')}</span><span class="stat-lbl">escala</span></div>` : ''}
+        <div class="stat-chip"><span class="stat-n">${fmt(total/rs.length,0)}</span><span class="stat-lbl">pts/UT médio</span></div>
+      </div>
+      <div class="sf-section-title">Ranking de UTs</div>
+      ${rows}`;
+    const n = document.getElementById('rp-score-anim');
+    if (n) animCount(n, Math.round(total));
+    requestAnimationFrame(() => pane.querySelectorAll('.sf-bar-fill[data-pct]').forEach(el => { el.style.width = el.dataset.pct + '%'; }));
+    return;
+  }
+
+  if (tipo === 'mi') {
+    const lps    = result?.lps || [];
+    const sfKeys = [...new Set(lps.flatMap(lp=>Object.keys(lp.subfases||{})))];
+    const maxS   = Math.max(...lps.map(lp=>lp.total||0),1);
+    const chips  = lps.map((lp,i)=>`<div class="stat-chip"><span class="stat-n" style="font-size:10px;color:${i===0?'var(--accent)':'var(--warn)'}">${esc((lp.nome||lp.key).split(' ').slice(-2).join(' '))}</span><span class="stat-lbl">${fmt(lp.total,0)} pts</span></div>`).join('');
+    const bars   = sfKeys.map(sk => {
+      const c    = SF_COLORS[sk] ?? '#4fc3f7';
+      const nome = lps[0]?.subfases?.[sk]?.nome || sfShort(sk);
+      const tds  = lps.map((lp,i)=>{
+        const p = lp.subfases?.[sk]?.pts ?? null;
+        return `<span style="color:${i===0?'var(--accent)':'var(--warn)'};font-weight:700;font-size:11px;flex-shrink:0">${p!=null?fmt(p,1):'—'}</span>`;
+      }).join('<span style="color:var(--muted);margin:0 3px;font-size:9px">vs</span>');
+      return `<div class="sf-bar-row" style="--sf-c:${c}">
+        <div class="sf-bar-label">
+          <span class="sf-bar-dot"></span>
+          <span class="sf-bar-name" title="${esc(nome)}">${esc(nome)}</span>
+          <span style="display:flex;align-items:center;gap:2px">${tds}</span>
+        </div>
+      </div>`;
+    }).join('');
+    pane.innerHTML = `
+      <div class="rp-score-row"><div>
+        <div class="rp-score-num" id="rp-score-anim">0 pts</div>
+        <div class="rp-score-lbl">${lps.length} LPs · ${result?.uts?.length??'?'} UTs${result?.area_km2?` · ${fmt(result.area_km2,1)} km²`:''}</div>
+      </div></div>
+      <div class="stat-chips">${chips}</div>
+      <div class="sf-section-title">Pontos por subfase</div>
+      ${bars}`;
+    const n = document.getElementById('rp-score-anim');
+    if (n) animCount(n, Math.round(lps[0]?.total??0));
+    return;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESULTADO — pane "Detalhes técnicos"
+════════════════════════════════════════════════════════════ */
+function renderDetalhesPane(entry) {
+  const pane  = document.getElementById('rpp-detalhes');
+  const { tipo, result, salvo_em } = entry;
+  const rows = [
+    ['ID',        entry.id],
+    ['Tipo',      entry.tipo],
+    ['Salvo em',  new Date(salvo_em).toLocaleString('pt-BR')],
+    ['Score',     fmt(entry.score,1) + ' pts'],
+    ['Escala',    entry.escala ? `1:${Number(entry.escala).toLocaleString('pt-BR')}` : '—'],
+    ['LP',        entry.lp_mapeamento || '—'],
+    ['Banco',     entry.banco || '—'],
+    ['N UTs',     entry.n_uts ?? '—'],
+    ['UT ID',     entry.ut_id ?? result?.ut_id ?? '—'],
+    ['Subfase',   entry.subfase_nome || entry.subfase_key || '—'],
+  ];
+  if (tipo === 'batch') {
+    rows.push(['N resultados', result?.resultados?.length ?? '—']);
+  }
+  if (tipo === 'mi') {
+    rows.push(['Área km²', result?.area_km2 ? fmt(result.area_km2,2) : '—']);
+    rows.push(['LPs', (result?.lps||[]).map(l=>l.key).join(', ') || '—']);
+  }
+  if (result?.por_camada?.length) {
+    const top = [...(result.por_camada||[])].sort((a,b)=>b.pts-a.pts).slice(0,5);
+    rows.push(['Top camadas', top.map(c=>`${c.camada||'–'}: ${fmt(c.pts,1)} pts`).join('<br>')]);
+  }
+  pane.innerHTML = rows.map(([k,v])=>`<div class="tech-row"><span class="tech-key">${esc(k)}</span><span class="tech-val">${v}</span></div>`).join('');
+}
+
+/* ════════════════════════════════════════════════════════════
+   COMPARAÇÃO DE 2 CÁLCULOS
+════════════════════════════════════════════════════════════ */
+let _cmpEntries = [];
+
+function setCmpMode(entry) {
+  _cmpEntries = [entry];
+  document.getElementById('cmp-banner').classList.remove('hidden');
+  document.getElementById('cmp-msg').textContent = `Comparando: "${entry.label.slice(0,30)}…" — selecione o 2º`;
+  document.querySelectorAll('.calc-card').forEach(c => c.classList.toggle('comparing', c.dataset.id === entry.id));
+}
+
+function clearCmpMode() {
+  _cmpEntries = [];
+  document.getElementById('cmp-banner').classList.add('hidden');
+  document.querySelectorAll('.calc-card.comparing').forEach(c => c.classList.remove('comparing'));
+}
+
+function renderComparacao(a, b) {
+  const pane = document.getElementById('rpp-resultado');
+  document.getElementById('result-panel').classList.add('open');
+  setTimeout(()=>map.invalidateSize(),300);
+
+  const getSf = e => {
+    if (e.tipo === 'single') return e.result?.por_subfase || {};
+    if (e.tipo === 'mi')     return Object.fromEntries((e.result?.lps?.[0]?.subfases ? Object.entries(e.result.lps[0].subfases).map(([k,v])=>[k,v.pts]) : []));
+    return {};
+  };
+  const sfA = getSf(a), sfB = getSf(b);
+  const allKeys = [...new Set([...Object.keys(sfA), ...Object.keys(sfB)])];
+
+  const scoreA = Object.values(sfA).reduce((s,v)=>s+v,0);
+  const scoreB = Object.values(sfB).reduce((s,v)=>s+v,0);
+  const delta  = scoreB - scoreA;
+  const pctD   = scoreA > 0 ? ((delta/scoreA)*100).toFixed(1) : null;
+
+  const rows = allKeys.map(k => {
+    const pA = sfA[k] ?? null, pB = sfB[k] ?? null;
+    const nome = sfShort(k);
+    const diff = pA != null && pB != null ? pB - pA : null;
+    const clsA = diff != null ? (diff > 0 ? 'worse'  : diff < 0 ? 'better' : '') : '';
+    const clsB = diff != null ? (diff > 0 ? 'better' : diff < 0 ? 'worse'  : '') : '';
+    return `<div style="display:flex;gap:6px;padding:4px 0;border-bottom:1px solid rgba(26,51,88,.3);font-size:10px;align-items:center">
+      <span style="flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nome)}</span>
+      <span style="width:52px;text-align:right;font-weight:700;color:${clsA==='better'?'var(--success)':clsA==='worse'?'var(--danger)':'var(--accent)'}">${pA!=null?fmt(pA,1):'—'}</span>
+      <span style="width:52px;text-align:right;font-weight:700;color:${clsB==='better'?'var(--success)':clsB==='worse'?'var(--danger)':'var(--purple)'}">${pB!=null?fmt(pB,1):'—'}</span>
+    </div>`;
+  }).join('');
+
+  pane.innerHTML = `
+    <div style="font-size:10px;color:var(--muted);margin-bottom:8px">Comparação de 2 cálculos</div>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <div style="flex:1;background:rgba(79,195,247,.08);border:1px solid rgba(79,195,247,.25);border-radius:5px;padding:6px 8px">
+        <div style="font-size:9px;color:var(--muted)">A</div>
+        <div style="font-size:11px;font-weight:700;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.label.slice(0,30))}</div>
+        <div style="font-size:18px;font-weight:900;color:var(--accent)">${fmt(scoreA,0)}</div>
+      </div>
+      <div style="flex:1;background:rgba(171,71,188,.08);border:1px solid rgba(171,71,188,.25);border-radius:5px;padding:6px 8px">
+        <div style="font-size:9px;color:var(--muted)">B</div>
+        <div style="font-size:11px;font-weight:700;color:var(--purple);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.label.slice(0,30))}</div>
+        <div style="font-size:18px;font-weight:900;color:var(--purple)">${fmt(scoreB,0)}</div>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:12px;margin-bottom:10px;color:${delta>=0?'var(--success)':'var(--danger)'}">
+      Δ ${delta>=0?'+':''}${fmt(delta,1)} pts ${pctD!=null?`(${delta>=0?'+':''}${pctD}%)`:''}
+    </div>
+    <div style="display:flex;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);font-size:9px;color:var(--muted)">
+      <span style="flex:1">Subfase</span><span style="width:52px;text-align:right">A</span><span style="width:52px;text-align:right">B</span>
+    </div>
+    ${rows}
+  `;
+  activateRPTab('resultado');
+}
+
+/* ════════════════════════════════════════════════════════════
+   ESTATÍSTICAS — gráficos SVG
+════════════════════════════════════════════════════════════ */
+function buildStats() {
+  const entries = _allEntries;
+  if (!entries.length) return;
+
+  // ── Stats bar ───────────────────────────────────────────────────────────
+  const scores  = entries.map(e => e.score ?? 0).filter(Number.isFinite);
+  const total   = entries.length;
+  const soma    = scores.reduce((s,v)=>s+v,0);
+  const media   = total > 0 ? soma/total : 0;
+  const maxScore = Math.max(...scores, 0);
+
+  const sfFreq = {};
+  entries.forEach(e => { if (e.subfase_key) sfFreq[e.subfase_key] = (sfFreq[e.subfase_key]||0)+1; });
+  const topSf = Object.entries(sfFreq).sort(([,a],[,b])=>b-a)[0];
+
+  document.getElementById('st-total').textContent = total.toLocaleString('pt-BR');
+  document.getElementById('st-pts').textContent   = fmtBig(soma);
+  document.getElementById('st-media').textContent = fmt(media,0);
+  document.getElementById('st-max').textContent   = fmt(maxScore,0);
+  document.getElementById('st-sf').textContent    = topSf ? sfShort(topSf[0]) : '—';
+  const last = entries[0];
+  document.getElementById('st-streak').textContent = last ? tempoRelativo(last.salvo_em) : '—';
+
+  // ── Distribuição de tipos ─────────────────────────────────────────────
+  const byTipo = { single: 0, batch: 0, mi: 0 };
+  entries.forEach(e => { if (byTipo[e.tipo] !== undefined) byTipo[e.tipo]++; });
+  const tColors = { single: '#4fc3f7', batch: '#ab47bc', mi: '#ffa726' };
+  const tLabels = { single: 'Individual', batch: 'Lote', mi: 'MI' };
+  const distBar = document.getElementById('type-dist-bar');
+  const distLeg = document.getElementById('type-dist-legend');
+  distBar.innerHTML = Object.entries(byTipo).filter(([,n])=>n>0).map(([t,n])=>{
+    const pct = (n/total*100).toFixed(1);
+    return `<div class="tdb-seg" style="width:${pct}%;background:${tColors[t]}" title="${tLabels[t]}: ${n}">${n}</div>`;
+  }).join('');
+  distLeg.innerHTML = Object.entries(byTipo).filter(([,n])=>n>0).map(([t,n])=>
+    `<div class="tdl-item"><span class="tdl-dot" style="background:${tColors[t]}"></span>${tLabels[t]}: <strong>${n}</strong></div>`
+  ).join('');
+
+  // ── Sparkline ────────────────────────────────────────────────────────
+  const sparkWrap = document.getElementById('sparkline-wrap');
+  const spData    = [...entries].reverse().slice(-30).map(e=>e.score??0);
+  if (spData.length > 1) {
+    const W = 310, H = 60, pad = 6;
+    const minV = Math.min(...spData), maxV = Math.max(...spData);
+    const rangeV = maxV - minV || 1;
+    const pts = spData.map((v, i) => {
+      const x = pad + (i/(spData.length-1)) * (W - 2*pad);
+      const y = (H-pad) - ((v-minV)/rangeV)*(H-2*pad);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    // área preenchida
+    const first = spData.map((_,i) => {
+      const x = pad + (i/(spData.length-1))*(W-2*pad);
+      const y = (H-pad) - ((spData[i]-minV)/rangeV)*(H-2*pad);
+      return [x.toFixed(1), y.toFixed(1)];
+    });
+    const fillPts = [`${first[0][0]},${H-pad}`, ...first.map(p=>p.join(',')), `${first[first.length-1][0]},${H-pad}`].join(' ');
+    sparkWrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="60" style="display:block">
+      <polygon points="${fillPts}" fill="rgba(79,195,247,.1)"/>
+      <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>
+      ${first.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.5" fill="var(--accent)"/>`).join('')}
+    </svg>`;
+  } else {
+    sparkWrap.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:10px">Poucos dados para o gráfico.</div>';
+  }
+
+  // ── Top subfases ─────────────────────────────────────────────────────
+  const topSFs = Object.entries(sfFreq).sort(([,a],[,b])=>b-a).slice(0,7);
+  const maxSF  = topSFs[0]?.[1] || 1;
+  document.getElementById('top-sf-chart').innerHTML = topSFs.map(([k,n])=>{
+    const c = SF_COLORS[k] ?? '#4fc3f7';
+    const pct = (n/maxSF*100).toFixed(0);
+    return `<div class="tsf-row">
+      <span class="tsf-name" title="${sfShort(k)}">${sfShort(k)}</span>
+      <div class="tsf-bar-wrap"><div class="tsf-bar-fill" style="width:${pct}%;background:${c}"></div></div>
+      <span class="tsf-count">${n}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--muted);font-size:11px">—</div>';
+
+  // ── Top scores ──────────────────────────────────────────────────────
+  const topScores = [...entries].sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,5);
+  const maxScoreR = topScores[0]?.score || 1;
+  document.getElementById('top-scores').innerHTML = topScores.map((e,i)=>{
+    const pct = ((e.score||0)/maxScoreR*100).toFixed(0);
+    const hue = Math.round(120 - (e.score/maxScoreR)*120);
+    return `<div class="rank-item">
+      <span class="rank-pos">#${i+1}</span>
+      <span class="rank-lbl" title="${esc(e.label)}">${esc(e.label)}</span>
+      <span class="rank-score" style="color:hsl(${hue},90%,55%)">${fmt(e.score,0)}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--muted);font-size:11px">—</div>';
+
+  // ── Bancos ──────────────────────────────────────────────────────────
+  const bancoFreq = {};
+  entries.forEach(e => { if (e.banco) bancoFreq[e.banco] = (bancoFreq[e.banco]||0)+1; });
+  const topBancos = Object.entries(bancoFreq).sort(([,a],[,b])=>b-a).slice(0,5);
+  const maxB = topBancos[0]?.[1] || 1;
+  document.getElementById('bancos-chart').innerHTML = topBancos.map(([b,n])=>`
+    <div class="tsf-row">
+      <span class="tsf-name" title="${esc(b)}">${esc(b)}</span>
+      <div class="tsf-bar-wrap"><div class="tsf-bar-fill" style="width:${(n/maxB*100).toFixed(0)}%;background:var(--accent2)"></div></div>
+      <span class="tsf-count">${n}</span>
+    </div>`).join('') || '<div style="color:var(--muted);font-size:11px">Nenhum banco registrado.</div>';
+}
+
+/* ════════════════════════════════════════════════════════════
+   CARDS
+════════════════════════════════════════════════════════════ */
+function buildCard(entry) {
+  const { id, tipo, label, score, escala, lp_mapeamento, banco, n_uts, salvo_em, favorito, nota } = entry;
+  const badgeCls = tipo==='single'?'badge-single':tipo==='batch'?'badge-batch':'badge-mi';
+  const badgeTxt = tipo==='single'?'Individual':tipo==='batch'?'Lote':'MI';
+  const escStr   = escala ? `1:${Number(escala).toLocaleString('pt-BR')}` : null;
+  const lpShort  = lp_mapeamento?.replace('mapeamento_','').replace('topo14','Topo').replace('topo','Topo').replace('orto','Orto') || null;
+  const chips = [
+    escStr  ? `<span class="card-chip">${esc(escStr)}</span>` : '',
+    lpShort ? `<span class="card-chip">${esc(lpShort)}</span>` : '',
+    banco   ? `<span class="card-chip ${banco.length<10?'hi':''}">${esc(banco)}</span>` : '',
+    n_uts != null ? `<span class="card-chip">${n_uts} UT${n_uts!==1?'s':''}</span>` : '',
+  ].filter(Boolean).join('');
+
+  return `<div class="calc-card${favorito?' fav':''}${_activeId===id?' active':''}" data-id="${esc(id)}" class="anim-in">
+    <div class="card-body">
+      <div class="card-row1">
+        <span class="badge-tipo ${badgeCls}">${badgeTxt}</span>
+        <span class="card-label" title="${esc(label)}">${esc(label)}</span>
+        <span class="card-score">${fmt(score,0)}</span>
+        <div class="card-actions">
+          <button class="card-fav" data-id="${esc(id)}" title="Favoritar">${favorito?'⭐':'☆'}</button>
+          <button class="card-cmp${_cmpEntries.length===1&&_cmpEntries[0].id===id?' active':''}" data-id="${esc(id)}" title="Comparar">⇄</button>
+          <button class="card-del" data-id="${esc(id)}" title="Remover">✕</button>
+        </div>
+      </div>
+      <div class="card-row2">${chips}<span class="card-date">${tempoRelativo(salvo_em)}</span></div>
+      ${nota ? `<div class="card-nota">📝 ${esc(nota.slice(0,80))}${nota.length>80?'…':''}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+/* ════════════════════════════════════════════════════════════
+   FILTROS & RENDER
+════════════════════════════════════════════════════════════ */
+let _allEntries = [];
+let _filtered   = [];
+let _activeId   = null;
+
+function applyFilters() {
+  const tipo  = document.getElementById('f-tipo').value;
+  const busca = document.getElementById('f-busca').value.toLowerCase().trim();
+  const ordem = document.getElementById('f-ordem').value;
+
+  _filtered = _allEntries.filter(e => {
+    if (tipo  && e.tipo !== tipo)                         return false;
+    if (busca && !e.label.toLowerCase().includes(busca))  return false;
+    return true;
+  });
+
+  if (ordem === 'score_desc') _filtered.sort((a,b)=>(b.score||0)-(a.score||0));
+  else if (ordem === 'score_asc')  _filtered.sort((a,b)=>(a.score||0)-(b.score||0));
+  else if (ordem === 'antigo')     _filtered.reverse();
+  else if (ordem === 'fav') _filtered.sort((a,b)=>(b.favorito?1:0)-(a.favorito?1:0));
+
+  document.getElementById('f-count').textContent = `${_filtered.length}/${_allEntries.length}`;
+
+  const list = document.getElementById('card-list');
+  if (!_filtered.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <div class="empty-msg">${_allEntries.length===0?'Nenhum cálculo salvo ainda.':'Nenhum resultado.'}</div>
+      <div class="empty-hint">${_allEntries.length===0?'Realize um cálculo na Calculadora ou Comparação MI — ele aparecerá aqui automaticamente.':''}</div>
+    </div>`;
+    return;
+  }
+  list.innerHTML = _filtered.map(buildCard).join('');
+}
+
+/* ════════════════════════════════════════════════════════════
+   SELECIONAR CARD
+════════════════════════════════════════════════════════════ */
+async function selecionarCard(id) {
+  // Modo comparação: 2º clique
+  if (_cmpEntries.length === 1 && _cmpEntries[0].id !== id) {
+    const b = _allEntries.find(e => e.id === id);
+    if (b) {
+      clearCmpMode();
+      _activeId = id;
+      applyFilters();
+      renderComparacao(_cmpEntries.length ? _cmpEntries[0] : _allEntries.find(e=>e.id===_activeId), b);
+      document.getElementById('result-panel').classList.add('open');
+      setTimeout(()=>map.invalidateSize(),300);
+      await renderOnMap(b);
+      return;
+    }
+  }
+
+  const entry = _allEntries.find(e => e.id === id);
+  if (!entry) return;
+  _activeId = id;
+  applyFilters();
+  document.getElementById('result-panel').classList.add('open');
+  setTimeout(()=>map.invalidateSize(),300);
+
+  // Preenche as notas
+  document.getElementById('nota-textarea').value = entry.nota || '';
+  document.getElementById('nota-save').dataset.id = id;
+
+  activateRPTab('resultado');
+  renderResultPane(entry);
+  renderDetalhesPane(entry);
+  await renderOnMap(entry);
+}
+
+/* ════════════════════════════════════════════════════════════
+   TABS
+════════════════════════════════════════════════════════════ */
+function activateRPTab(name) {
+  document.querySelectorAll('.rp-tab').forEach(t => t.classList.toggle('active', t.dataset.rp === name));
+  document.querySelectorAll('.rp-pane').forEach(p => p.classList.toggle('active', p.id === 'rpp-' + name));
+}
+
+document.querySelectorAll('.rp-tab[data-rp]').forEach(btn => {
+  btn.addEventListener('click', () => activateRPTab(btn.dataset.rp));
+});
+
+document.querySelectorAll('.p-tab[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.p-tab').forEach(t=>t.classList.toggle('active', t===btn));
+    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.id==='tab-'+btn.dataset.tab));
+    if (btn.dataset.tab === 'stats') buildStats();
+  });
+});
+
+/* ════════════════════════════════════════════════════════════
+   EVENTOS — card list (delegação)
+════════════════════════════════════════════════════════════ */
+document.getElementById('card-list').addEventListener('click', async e => {
+  // Favoritar
+  const btnFav = e.target.closest('.card-fav');
+  if (btnFav) {
+    e.stopPropagation();
+    const id = btnFav.dataset.id;
+    const en = _allEntries.find(x=>x.id===id);
+    if (!en) return;
+    GECalcStore.update(id, { favorito: !en.favorito });
+    en.favorito = !en.favorito;
+    applyFilters();
+    return;
+  }
+  // Comparar
+  const btnCmp = e.target.closest('.card-cmp');
+  if (btnCmp) {
+    e.stopPropagation();
+    const id = btnCmp.dataset.id;
+    const en = _allEntries.find(x=>x.id===id);
+    if (!en) return;
+    if (_cmpEntries.length===1 && _cmpEntries[0].id===id) { clearCmpMode(); applyFilters(); return; }
+    setCmpMode(en);
+    applyFilters();
+    return;
+  }
+  // Deletar
+  const btnDel = e.target.closest('.card-del');
+  if (btnDel) {
+    e.stopPropagation();
+    const id = btnDel.dataset.id;
+    GECalcStore.remove(id);
+    _allEntries = _allEntries.filter(e => e.id !== id);
+    if (_activeId === id) {
+      _activeId = null;
+      document.getElementById('result-panel').classList.remove('open');
+      geomLayer.clearLayers();
+      const h = document.getElementById('map-hint');
+      h.innerHTML='<div class="hint-icon">🗺</div><div class="hint-txt">Clique em um cálculo para visualizar</div>';
+      h.classList.remove('hidden');
+    }
+    applyFilters();
+    buildStats();
+    return;
+  }
+  // Selecionar
+  const card = e.target.closest('.calc-card');
+  if (card) await selecionarCard(card.dataset.id);
+});
+
+/* ════════════════════════════════════════════════════════════
+   OUTROS EVENTOS
+════════════════════════════════════════════════════════════ */
+// Fechar painel
+document.getElementById('rp-close').addEventListener('click', () => {
+  document.getElementById('result-panel').classList.remove('open');
+  _activeId = null;
+  document.querySelectorAll('.calc-card.active').forEach(c=>c.classList.remove('active'));
+  setTimeout(()=>map.invalidateSize(),300);
+});
+
+// Cancelar comparação
+document.getElementById('cmp-cancel').addEventListener('click', () => { clearCmpMode(); applyFilters(); });
+
+// Filtros
+['f-tipo','f-busca','f-ordem'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input',  applyFilters);
+  document.getElementById(id)?.addEventListener('change', applyFilters);
+});
+
+// Salvar nota
+document.getElementById('nota-save').addEventListener('click', () => {
+  const id   = document.getElementById('nota-save').dataset.id;
+  const nota = document.getElementById('nota-textarea').value.trim();
+  if (!id) return;
+  GECalcStore.update(id, { nota });
+  const en = _allEntries.find(e=>e.id===id);
+  if (en) en.nota = nota;
+  applyFilters();
+  // feedback
+  const btn = document.getElementById('nota-save');
+  btn.textContent = '✓ Salvo!';
+  setTimeout(()=>{ btn.textContent = '💾 Salvar nota'; }, 1500);
+});
+
+// Limpar tudo
+document.getElementById('btn-limpar').addEventListener('click', () => {
+  if (!_allEntries.length) return;
+  if (!confirm(`Remover todos os ${_allEntries.length} cálculos?`)) return;
+  GECalcStore.clear();
+  _allEntries = [];
+  _activeId = null;
+  document.getElementById('result-panel').classList.remove('open');
+  geomLayer.clearLayers();
+  applyFilters();
+  buildStats();
+});
+
+// Exportar JSON
+document.getElementById('btn-exportar').addEventListener('click', () => {
+  if (!_allEntries.length) { alert('Nenhum cálculo para exportar.'); return; }
+  const blob = new Blob([JSON.stringify(_allEntries, null, 2)], { type: 'application/json' });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: `ge_calculos_${new Date().toISOString().slice(0,10)}.json`,
+  });
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+// Exportar CSV
+document.getElementById('btn-exportar-csv').addEventListener('click', () => {
+  if (!_allEntries.length) { alert('Nenhum cálculo.'); return; }
+  const cols = ['id','tipo','salvo_em','label','score','escala','lp_mapeamento','banco','n_uts','subfase_key','nota'];
+  const rows = _allEntries.map(e => cols.map(c => {
+    const v = e[c] ?? '';
+    return typeof v === 'string' && v.includes(',') ? `"${v.replace(/"/g,'""')}"` : v;
+  }).join(','));
+  const csv  = [cols.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: `ge_calculos_${new Date().toISOString().slice(0,10)}.csv`,
+  });
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+// Importar JSON
+document.getElementById('btn-importar').addEventListener('click', () => document.getElementById('import-input').click());
+document.getElementById('import-input').addEventListener('change', async e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const arr  = JSON.parse(text);
+    if (!Array.isArray(arr)) throw new Error('Formato inválido — esperado array JSON.');
+    const n = GECalcStore.importList(arr);
+    _allEntries = GECalcStore.load();
+    applyFilters(); buildStats();
+    alert(`${n} cálculo${n!==1?'s':''} importado${n!==1?'s':''}.`);
+  } catch(err) { alert('Erro ao importar: ' + err.message); }
+  e.target.value = '';
+});
+
+/* ════════════════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════════════════ */
+_allEntries = GECalcStore.load();
+applyFilters();
+buildStats();
+</script>
+</body>
+</html>

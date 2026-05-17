@@ -517,6 +517,25 @@ td.td-pts.total .tdi, td.td-pts-zero.total .tdi { font-size: 12px; font-weight: 
 .refine-btn-cancel:hover { border-color: var(--danger); color: var(--danger); }
 .refine-avisos { font-size: 10px; color: var(--warn); }
 
+/* Painel de conexão personalizada no refinamento */
+.refine-conn-toggle {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--muted); font-size: 10px; padding: 2px 6px; cursor: pointer;
+  flex-shrink: 0; transition: all .15s; line-height: 1;
+}
+.refine-conn-toggle:hover,
+.refine-conn-toggle.active { border-color: var(--accent); color: var(--accent); }
+.refine-conn-section {
+  width: 100%; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 6px; padding-top: 7px; border-top: 1px solid rgba(26,51,88,.5);
+}
+.refine-conn-inp {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); padding: 3px 7px; font-size: 11px;
+}
+.refine-conn-inp:focus { outline: none; border-color: var(--accent); }
+.refine-conn-inp::placeholder { color: var(--muted); opacity: .7; }
+
 /* Seletor de moldura dentro do painel de refino */
 .refine-moldura-wrap {
   width: 100%; margin-top: 6px;
@@ -671,6 +690,7 @@ svg.stacked-bar text { font-family: var(--font); }
   <div class="h-sep"></div>
   <a href="/notas.html"    class="h-nav-link">📊 Notas</a>
   <a href="/unidades.html" class="h-nav-link">⊞ UTs</a>
+  <a href="/calculos.html" class="h-nav-link">📋 Cálculos</a>
   <a href="/"              class="h-back">← Calculadora</a>
 </header>
 
@@ -746,8 +766,12 @@ svg.stacked-bar text { font-family: var(--font); }
         background:rgba(79,195,247,.1); border:1px solid rgba(79,195,247,.25); color:var(--accent);
         cursor:pointer; transition:background .15s;
       ">⚡ Conectar</button>
-      <div style="font-size:10px;color:var(--muted);line-height:1.5">
-        Após conectar, clique nas feições da moldura no mapa para selecioná-las.
+      <div id="banco-hint" style="font-size:10px;color:var(--muted);line-height:1.6;background:rgba(26,51,88,.3);border-radius:5px;padding:6px 8px">
+        <strong style="color:var(--text)">Como usar:</strong><br>
+        1. Digite o nome do banco PostgreSQL<br>
+        2. Clique <em>Conectar</em> — a moldura aparece no mapa<br>
+        3. Clique nas feições para selecioná-las<br>
+        4. Clique <em>Calcular MI</em>
       </div>
     </div>
 
@@ -769,10 +793,21 @@ svg.stacked-bar text { font-family: var(--font); }
       <div class="sb-quick-btns">
         <button class="sb-quick-btn" id="btn-sel-todas">☑ Todas</button>
         <button class="sb-quick-btn" id="btn-desel-todas">☐ Nenhuma</button>
-        <span id="sel-badge" style="font-size:11px;color:var(--accent);font-weight:700;margin-left:auto;align-self:center">0</span>
+        <span id="sel-badge" style="font-size:11px;color:var(--accent);font-weight:700;margin-left:auto;align-self:center">0 sel.</span>
       </div>
-      <div style="font-size:10px;color:var(--muted);text-align:center;padding:2px 0">
-        🔁 Sempre compara Topo × Orto
+      <!-- Seleção de LPs para comparar -->
+      <div style="display:flex;flex-direction:column;gap:4px;padding:2px 0 4px">
+        <div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.4px">🔁 Comparar LPs:</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;user-select:none">
+            <input type="checkbox" id="chk-lp-topo" checked style="accent-color:var(--accent)">
+            <span style="color:var(--accent)">Topo 1.4</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;user-select:none">
+            <input type="checkbox" id="chk-lp-orto" checked style="accent-color:#ffa726">
+            <span style="color:#ffa726">Carta Orto</span>
+          </label>
+        </div>
       </div>
       <button id="btn-calcular" disabled>⚡ Calcular MI</button>
     </div>
@@ -786,7 +821,7 @@ svg.stacked-bar text { font-family: var(--font); }
     <div id="map-hint">
       <div class="map-hint-inner">
         <div class="map-hint-icon">🗺</div>
-        <div class="map-hint-text">
+        <div id="map-hint-text" class="map-hint-text">
           Selecione um <strong>lote</strong> no painel à esquerda para carregar as UTs no mapa.<br>
           <span style="font-size:11px;color:var(--muted)">Clique nos polígonos para selecionar.</span>
         </div>
@@ -854,6 +889,29 @@ let _mapUTLayer   = null;   // L.GeoJSON — UTs do SAP
 let _mapLayerById = {};     // ut_id → Leaflet layer (SAP)
 let _allUTs       = [];     // de /api/uts/lista
 let _utMetaById   = {};     // id → meta
+// ── Histórico de cálculos (localStorage) ─────────────────────────────────────
+const GECalcStore = (() => {
+  const KEY = 'ge_calculos_v1';
+  const MAX = 150;
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (_) { return []; }
+  }
+  function save(entry) {
+    let list = load();
+    list.unshift({ id: Date.now().toString(36), salvo_em: new Date().toISOString(), ...entry });
+    if (list.length > MAX) list = list.slice(0, MAX);
+    try { localStorage.setItem(KEY, JSON.stringify(list)); }
+    catch (_) {
+      try { localStorage.setItem(KEY, JSON.stringify(list.slice(0, Math.floor(MAX / 2)))); } catch (__) {}
+    }
+  }
+  function remove(id) {
+    localStorage.setItem(KEY, JSON.stringify(load().filter(e => e.id !== id)));
+  }
+  function clear() { localStorage.removeItem(KEY); }
+  return { load, save, remove, clear };
+})();
+
 let _selectedIds  = new Set();
 let _lpIdToNome   = {};     // linha_producao_id → nome LP
 let _allLPs       = [];
@@ -1061,6 +1119,7 @@ async function carregarMoldura() {
 
     const bounds = _molduraLayer.getBounds();
     if (bounds.isValid()) _map.fitBounds(bounds, { padding: [20, 20] });
+    document.getElementById('map-hint').classList.add('hidden');
 
   } catch (e) {
     console.warn('[moldura]', e.message);
@@ -1316,24 +1375,60 @@ function setModo(modo) {
   _selectedIds.clear();
   atualizarBadge();
 
+  const mapHint     = document.getElementById('map-hint');
+  const mapHintText = document.getElementById('map-hint-text');
+
+  const rm  = layer => { if (_map && layer) { try { _map.removeLayer(layer); } catch(_) {} } };
+  const add = layer => { if (_map && layer) { try { layer.addTo(_map); }       catch(_) {} } };
+
+  const setHint = (html) => { if (mapHintText) mapHintText.innerHTML = html; };
+
   if (_modoArquivo) {
-    // Esconder UTs do SAP no mapa
-    if (_mapUTLayer) { _map.removeLayer(_mapUTLayer); _mapUTLayer = null; _mapLayerById = {}; }
-    document.getElementById('map-hint').classList.add('hidden');
-  } else {
-    // Esconder arquivo no mapa ao sair do modo arquivo
-    if (_arquivoLayerGroup) { _map.removeLayer(_arquivoLayerGroup); _arquivoLayerGroup = null; _arquivoLayerById = {}; }
+    // Arquivo: esconder UTs do SAP, esconder moldura, mostrar hint arquivo
+    if (_mapUTLayer) { rm(_mapUTLayer); _mapUTLayer = null; _mapLayerById = {}; }
+    rm(_molduraLayer);  // esconde mas não limpa estado
+    if (_arquivoLayerGroup) {
+      if (mapHint) mapHint.classList.add('hidden');
+    } else {
+      setHint('Carregue um <strong>arquivo .zip (SHP) ou .gpkg</strong> no painel à esquerda.<br><span style="font-size:11px;color:var(--muted)">As feições aparecerão aqui para seleção.</span>');
+      if (mapHint) mapHint.classList.remove('hidden');
+    }
+  } else if (_modoBanco) {
+    // Banco: esconder UTs do SAP e arquivo, mostrar moldura se existir
+    if (_mapUTLayer) { rm(_mapUTLayer); _mapUTLayer = null; _mapLayerById = {}; }
+    if (_arquivoLayerGroup) { rm(_arquivoLayerGroup); _arquivoLayerGroup = null; _arquivoLayerById = {}; }
     _arquivoFeatures = [];
     _arquivoSelectedIdx.clear();
-    document.getElementById('arquivo-info').classList.add('hidden');
+    const arqInfo = document.getElementById('arquivo-info');
+    if (arqInfo) arqInfo.classList.add('hidden');
+    if (_molduraLayer) {
+      add(_molduraLayer);  // volta a mostrar moldura se já carregada
+      if (mapHint) mapHint.classList.add('hidden');
+    } else {
+      setHint('Digite um <strong>banco</strong> e clique <em>Conectar</em>.<br><span style="font-size:11px;color:var(--muted)">A moldura do banco aparecerá para seleção.</span>');
+      if (mapHint) mapHint.classList.remove('hidden');
+    }
+  } else {
+    // SAP: esconder arquivo e moldura
+    if (_arquivoLayerGroup) { rm(_arquivoLayerGroup); _arquivoLayerGroup = null; _arquivoLayerById = {}; }
+    rm(_molduraLayer);
+    _arquivoFeatures = [];
+    _arquivoSelectedIdx.clear();
+    const arqInfo2 = document.getElementById('arquivo-info');
+    if (arqInfo2) arqInfo2.classList.add('hidden');
     const drop = document.getElementById('arquivo-drop');
-    if (drop) drop.querySelector('.drop-zone-text').innerHTML =
-      'Arraste ou clique para carregar<br><strong>.zip</strong> (SHP zipado) ou <strong>.gpkg</strong>';
-    // Mostrar hint se SAP sem lote carregado
-    if (modo === 'sap' && !document.getElementById('sel-lote').value)
-      document.getElementById('map-hint').classList.remove('hidden');
-    else
-      document.getElementById('map-hint').classList.add('hidden');
+    if (drop) {
+      const dzText = drop.querySelector('.drop-zone-text');
+      if (dzText) dzText.innerHTML = 'Arraste ou clique para carregar<br><strong>.zip</strong> (SHP zipado) ou <strong>.gpkg</strong>';
+    }
+    // Mostrar hint se sem lote carregado
+    const selLote = document.getElementById('sel-lote');
+    if (!selLote || !selLote.value) {
+      setHint('Selecione um <strong>lote</strong> no painel à esquerda para carregar as UTs no mapa.<br><span style="font-size:11px;color:var(--muted)">Clique nos polígonos para selecionar.</span>');
+      if (mapHint) mapHint.classList.remove('hidden');
+    } else {
+      if (mapHint) mapHint.classList.add('hidden');
+    }
   }
 }
 
@@ -1476,8 +1571,59 @@ async function carregarFiltros() {
 
     // Popula lotes (todos, sem filtro inicial)
     renderLoteSelect();
+
+    // ── Empty state: SAP sem dados → guia o usuário para outros modos ────
+    if (_allLotes.length === 0) {
+      const lista = document.getElementById('ut-lista');
+      lista.innerHTML = `
+        <div style="padding:14px 10px;display:flex;flex-direction:column;gap:10px">
+          <div style="
+            background:rgba(239,83,80,.08);border:1px solid rgba(239,83,80,.25);
+            border-radius:7px;padding:10px 12px;font-size:11px;line-height:1.6;color:var(--muted)">
+            <div style="font-weight:700;color:var(--danger);margin-bottom:4px">⚠ SAP sem dados</div>
+            Nenhum lote ou UT encontrado. O SAP pode estar sem conexão ou sem projetos cadastrados.
+          </div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.7">
+            <div style="font-weight:700;color:var(--text);margin-bottom:4px">Use os outros modos:</div>
+            <div>📁 <strong>Arquivo</strong> — carregue um .zip (SHP) ou .gpkg</div>
+            <div>🗺 <strong>Banco</strong> — conecte direto ao banco EDGV e selecione feições da moldura</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button onclick="setModo('arquivo')" style="
+              flex:1;padding:6px 0;border-radius:6px;border:1px solid var(--border);
+              background:rgba(79,195,247,.07);color:var(--accent);font-size:11px;
+              font-weight:600;cursor:pointer;transition:all .15s"
+              onmouseover="this.style.background='rgba(79,195,247,.15)'"
+              onmouseout="this.style.background='rgba(79,195,247,.07)'">
+              📁 Arquivo
+            </button>
+            <button onclick="setModo('banco')" style="
+              flex:1;padding:6px 0;border-radius:6px;border:1px solid var(--border);
+              background:rgba(255,167,38,.07);color:#ffa726;font-size:11px;
+              font-weight:600;cursor:pointer;transition:all .15s"
+              onmouseover="this.style.background='rgba(255,167,38,.15)'"
+              onmouseout="this.style.background='rgba(255,167,38,.07)'">
+              🗺 Banco
+            </button>
+          </div>
+        </div>`;
+    }
   } catch (e) {
     console.warn('Filtros não carregados:', e);
+    // Mostrar erro no painel SAP também
+    const lista = document.getElementById('ut-lista');
+    if (lista) lista.innerHTML = `
+      <div style="padding:14px 10px;display:flex;flex-direction:column;gap:8px">
+        <div style="
+          background:rgba(239,83,80,.08);border:1px solid rgba(239,83,80,.25);
+          border-radius:7px;padding:10px 12px;font-size:11px;line-height:1.6;color:var(--muted)">
+          <div style="font-weight:700;color:var(--danger);margin-bottom:4px">⚠ Erro ao conectar ao SAP</div>
+          ${esc(e.message || 'Falha de conexão')}
+        </div>
+        <div style="font-size:10px;color:var(--muted)">
+          Use <strong>📁 Arquivo</strong> ou <strong>🗺 Banco</strong> para calcular sem o SAP.
+        </div>
+      </div>`;
   }
 }
 
@@ -1559,6 +1705,16 @@ document.getElementById('btn-sel-todas').addEventListener('click', () => {
     atualizarBadge();
     return;
   }
+  if (_modoBanco) {
+    _molduraFeatures.forEach((_, idx) => {
+      _molduraSelectedIdx.add(idx);
+      const lyr = _molduraLayerByIdx[idx];
+      if (lyr) { lyr.setStyle(ST_MOLDURA_SELECTED); lyr.bringToFront(); }
+    });
+    atualizarBadge();
+    return;
+  }
+  // SAP
   const search   = document.getElementById('inp-search').value.trim().toLowerCase();
   const sfFilter = document.getElementById('sel-subfase').value;
   _allUTs
@@ -1583,6 +1739,16 @@ document.getElementById('btn-desel-todas').addEventListener('click', () => {
     atualizarBadge();
     return;
   }
+  if (_modoBanco) {
+    _molduraSelectedIdx.forEach(idx => {
+      const lyr = _molduraLayerByIdx[idx];
+      if (lyr) lyr.setStyle(ST_MOLDURA_NORMAL);
+    });
+    _molduraSelectedIdx.clear();
+    atualizarBadge();
+    return;
+  }
+  // SAP
   _selectedIds.forEach(id => {
     const lyr = _mapLayerById[id];
     if (lyr) lyr.setStyle(ST_NORMAL);
@@ -1643,8 +1809,17 @@ document.getElementById('sel-lp').addEventListener('change', () => {
   }
 });
 
+// ── Retorna as lp_keys selecionadas pelos checkboxes do footer ─────────────
+function buildSelectedLPKeys() {
+  const keys = [];
+  if (document.getElementById('chk-lp-topo')?.checked) keys.push('mapeamento_topo');
+  if (document.getElementById('chk-lp-orto')?.checked) keys.push('mapeamento_orto');
+  return keys.length > 0 ? keys : ['mapeamento_topo']; // sempre ao menos uma
+}
+
 // ── Calcular MI ───────────────────────────────────────────────────────────
 document.getElementById('btn-calcular').addEventListener('click', async () => {
+  const lpKeys = buildSelectedLPKeys();
   let payload;
 
   if (_modoArquivo) {
@@ -1657,12 +1832,12 @@ document.getElementById('btn-calcular').addEventListener('click', async () => {
     const denomEscala = parseInt(document.getElementById('sel-escala').value) || 50000;
     payload = {
       geom_geojson:       selectedGeoms,
-      lp_keys:            ['mapeamento_topo', 'mapeamento_orto'],
+      lp_keys:            lpKeys,
       denominador_escala: denomEscala,
     };
 
-  } else if (_molduraSelectedIdx.size > 0) {
-    // ── Modo Moldura (feições de aux_moldura_a selecionadas no mapa) ──
+  } else if (_modoBanco && _molduraSelectedIdx.size > 0) {
+    // ── Modo Banco (feições de aux_moldura_a selecionadas no mapa) ────
     const selectedGeoms = [..._molduraSelectedIdx]
       .map(i => _molduraFeatures[i]?.geometry)
       .filter(Boolean);
@@ -1675,7 +1850,7 @@ document.getElementById('btn-calcular').addEventListener('click', async () => {
 
     payload = {
       geom_geojson:       selectedGeoms,
-      lp_keys:            ['mapeamento_topo', 'mapeamento_orto'],
+      lp_keys:            lpKeys,
       denominador_escala: denomEscala,
     };
 
@@ -1684,14 +1859,16 @@ document.getElementById('btn-calcular').addEventListener('click', async () => {
     if (_selectedIds.size === 0) return;
     payload = {
       ut_ids:  [..._selectedIds],
-      lp_keys: ['mapeamento_topo', 'mapeamento_orto'],
+      lp_keys: lpKeys,
     };
   }
 
   // Mensagem de loading contextual
-  const nSel = _modoArquivo ? _arquivoSelectedIdx.size : _selectedIds.size;
+  const nSel = _modoArquivo ? _arquivoSelectedIdx.size
+             : _modoBanco   ? _molduraSelectedIdx.size
+             : _selectedIds.size;
   openResultPanel();
-  mostrarLoading(true, `Calculando ${nSel} feição${nSel > 1 ? 'ões' : ''} — todas as subfases…`);
+  mostrarLoading(true, `Calculando ${nSel} feição${nSel !== 1 ? 'ões' : ''} — ${lpKeys.length} LP${lpKeys.length > 1 ? 's' : ''}, todas as subfases…`);
 
   try {
     const data = await fetch('/api/calcular/mi', {
@@ -1706,6 +1883,20 @@ document.getElementById('btn-calcular').addEventListener('click', async () => {
     _lastPayload = payload;   // guarda para reusar no refine
     mostrarLoading(false);
     renderResultado(data);
+
+    // Auto-save no histórico
+    GECalcStore.save({
+      tipo:          'mi',
+      label:         `MI — ${data.uts?.length ?? '?'} UT${(data.uts?.length ?? 0) !== 1 ? 's' : ''} · ${(data.lps || []).map(l => (l.nome || l.key || '').split(' ').slice(-2).join(' ')).join(' vs ')}`,
+      subfase_key:   null,
+      subfase_nome:  'Todas as subfases',
+      score:         data.lps?.[0]?.total ?? 0,
+      escala:        data.escala ?? null,
+      lp_mapeamento: data.lps?.[0]?.key ?? null,
+      banco:         data.banco ?? (document.getElementById('inp-banco')?.value?.trim() || null),
+      n_uts:         data.uts?.length ?? null,
+      result:        data,
+    });
 
   } catch (e) {
     mostrarLoading(false);
@@ -1809,6 +2000,22 @@ function renderResultado(data) {
 }
 
 // ── Refinamento de subfase ────────────────────────────────────────────────
+// ── Lê campos de conexão personalizada do refine para um objeto conn ────────
+// Retorna null se nenhum campo preenchido (= usa comportamento padrão).
+function buildConnObj(sfKey) {
+  const host = document.getElementById(`refine-host-${sfKey}`)?.value?.trim() || '';
+  const port = document.getElementById(`refine-port-${sfKey}`)?.value?.trim() || '';
+  const user = document.getElementById(`refine-user-${sfKey}`)?.value?.trim() || '';
+  const pass = document.getElementById(`refine-pass-${sfKey}`)?.value?.trim() || '';
+  if (!host && !port && !user && !pass) return null;
+  return {
+    host:     host || 'localhost',
+    port:     port || '5432',
+    user:     user || undefined,
+    password: pass || undefined,
+  };
+}
+
 // Aceita o resultado do refine e atualiza _lastResult + re-renderiza
 function aceitarRefine(sfKey, lpKey, newPts, newPorCamada, banco) {
   if (!_lastResult) return;
@@ -2002,7 +2209,15 @@ function buildTabela(wrap, data) {
             📍 Moldura do banco
           </button>
           <button class="refine-btn-test" id="refine-calc-${sfKey}" data-sfkey="${sfKey}">▶ Testar</button>
+          <button class="refine-conn-toggle" data-sfkey="${sfKey}" title="Conexão personalizada (IP/porta/usuário/senha)">⚙</button>
           <div class="refine-result" id="refine-result-${sfKey}"></div>
+        </div>
+        <div class="refine-conn-section hidden" id="refine-conn-${sfKey}">
+          <span class="refine-label" style="font-size:10px">⚙ Servidor remoto:</span>
+          <input class="refine-conn-inp" id="refine-host-${sfKey}" placeholder="host" style="width:120px">
+          <input class="refine-conn-inp" id="refine-port-${sfKey}" placeholder="porta (5432)" style="width:75px" type="number" min="1" max="65535">
+          <input class="refine-conn-inp" id="refine-user-${sfKey}" placeholder="usuário" style="width:90px">
+          <input class="refine-conn-inp" id="refine-pass-${sfKey}" placeholder="senha" style="width:90px" type="password">
         </div>
         <div class="refine-moldura-wrap hidden" id="refine-mf-wrap-${sfKey}">
           <div class="refine-moldura-hd">
@@ -2103,6 +2318,19 @@ function buildTabela(wrap, data) {
       return;
     }
 
+    // Botão ⚙ — toggle painel de conexão personalizada
+    const btnConn = e.target.closest('.refine-conn-toggle');
+    if (btnConn) {
+      const sfKey   = btnConn.dataset.sfkey;
+      const section = document.getElementById(`refine-conn-${sfKey}`);
+      if (!section) return;
+      section.classList.toggle('hidden');
+      btnConn.classList.toggle('active', !section.classList.contains('hidden'));
+      if (!section.classList.contains('hidden'))
+        document.getElementById(`refine-host-${sfKey}`)?.focus();
+      return;
+    }
+
     // Botão "📍 Moldura do banco" — carrega features e mostra chips
     const btnMoldura = e.target.closest('.btn-refine-moldura-load');
     if (btnMoldura) {
@@ -2118,8 +2346,16 @@ function buildTabela(wrap, data) {
       mfList.innerHTML = `<span class="refine-moldura-status"><span style="animation:spin 1s linear infinite;display:inline-block">⟳</span> Carregando moldura…</span>`;
 
       try {
-        const fc = await fetch(`/api/moldura/features?banco=${encodeURIComponent(banco)}`)
-          .then(r => r.json());
+        // Monta URL — inclui parâmetros de conexão remota se preenchidos
+        const conn = buildConnObj(sfKey);
+        let molduraUrl = `/api/moldura/features?banco=${encodeURIComponent(banco)}`;
+        if (conn) {
+          if (conn.host)     molduraUrl += `&host=${encodeURIComponent(conn.host)}`;
+          if (conn.port)     molduraUrl += `&port=${encodeURIComponent(conn.port)}`;
+          if (conn.user)     molduraUrl += `&user=${encodeURIComponent(conn.user)}`;
+          if (conn.password) molduraUrl += `&password=${encodeURIComponent(conn.password)}`;
+        }
+        const fc = await fetch(molduraUrl).then(r => r.json());
         if (fc.erro) throw new Error(fc.erro);
         const feats = fc.features || [];
         if (!feats.length) {
@@ -2167,11 +2403,15 @@ function buildTabela(wrap, data) {
       const mfList   = document.getElementById(`refine-mf-list-${sfKey}`);
       const banco    = bancoInp?.value?.trim();
       const lpKey    = lpSel?.value;
-      if (!banco || !lpKey || !_lastPayload) return;
+      const conn     = buildConnObj(sfKey);
+      // conn preenchida requer host; banco requerido se sem conn
+      if ((!banco && !conn?.host) || !lpKey || !_lastPayload) return;
 
       // Verifica se há chips de moldura selecionados → usa essa geometria
       const selChips  = mfList ? [...mfList.querySelectorAll('.refine-mf-chip.sel')] : [];
       let refinePayload = { ..._lastPayload, subfase_key: sfKey, lp_key: lpKey, banco };
+      // Inclui conexão personalizada quando especificada
+      if (conn) refinePayload.conn = { ...conn, database: banco };
 
       if (selChips.length > 0 && mfList._refineFeatures) {
         const geoms = selChips.map(c => mfList._refineFeatures[+c.dataset.idx]?.geometry).filter(Boolean);

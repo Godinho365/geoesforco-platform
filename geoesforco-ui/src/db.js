@@ -38,9 +38,30 @@ function setEdgvDb(dbName) {
   old.end().catch(() => {});
 }
 
+/**
+ * Troca temporariamente o pool EDGV por um pool customizado (conexão remota).
+ * Retorna uma função "restore" que deve ser chamada no finally do caller.
+ *
+ * Uso:
+ *   const tempPool = new Pool({ host, port, database, user, password, ... });
+ *   const restore  = swapEdgvPool(tempPool);
+ *   try   { await calculateScore(...); }
+ *   finally { restore(); tempPool.end().catch(()=>{}); }
+ */
+function swapEdgvPool(customPool) {
+  const savedPool = _edgvPool;
+  const savedDb   = _edgvDb;
+  _edgvPool = customPool;
+  _edgvDb   = '__custom__';
+  return function restore() {
+    _edgvPool = savedPool;
+    _edgvDb   = savedDb;
+  };
+}
+
 // Proxy transparente — mantém compatibilidade com código existente
 const edgvPool = new Proxy({}, {
   get(_, prop) { return _edgvPool[prop].bind(_edgvPool); },
 });
 
-module.exports = { sapPool, edgvPool, refPool, osmPool, getEdgvDb, getEdgvPool, setEdgvDb };
+module.exports = { sapPool, edgvPool, refPool, osmPool, getEdgvDb, getEdgvPool, setEdgvDb, swapEdgvPool };
