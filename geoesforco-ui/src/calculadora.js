@@ -108,7 +108,8 @@ function camadaKey(c) {
 // Usada quando o usuário sobe um SHP/GPKG de curva de nível em vez de usar
 // edgv.elemnat_curva_nivel_l.  Parâmetros: $1=geomUT, $2=key, $3=multilineJSON, $4=srid
 function buildQueryCurvaNivelExt(c) {
-  const joinTab = c.join; // 'elemnat_trecho_drenagem_l'
+  const joinTab      = c.join; // 'elemnat_trecho_drenagem_l'
+  const andWhereJoin = c.where_join ? ` AND (${c.where_join})` : '';
   return `
     WITH curva_ext AS (
       -- Decompõe o MultiLineString enviado pelo cliente em LineStrings individuais
@@ -128,7 +129,7 @@ function buildQueryCurvaNivelExt(c) {
     JOIN edgv.${joinTab} b
       ON ST_Intersects(a.geom, b.geom)
       AND ST_Dimension(ST_Intersection(a.geom, b.geom)) = 0
-    WHERE ST_Intersects(b.geom, $1::geometry)
+    WHERE ST_Intersects(b.geom, $1::geometry)${andWhereJoin}
     HAVING COUNT(*) > 0`;
 }
 
@@ -182,6 +183,8 @@ function buildQuery(c) {
 
   // Interseção entre DUAS tabelas diferentes (ex: curva_nivel × drenagem)
   if (joinTabela && joinTabela !== tabela) {
+    const andWhereA = c.where      ? ` AND (${c.where})`      : '';
+    const andWhereB = c.where_join ? ` AND (${c.where_join})` : '';
     return `
       SELECT $2::text AS camada, 'qtd' AS metrica,
         COUNT(*)::numeric AS valor
@@ -189,7 +192,7 @@ function buildQuery(c) {
       JOIN ${tbl(joinTabela)} b
         ON ST_Intersects(a.geom, b.geom)
         AND ST_Dimension(ST_Intersection(a.geom, b.geom)) = 0
-      WHERE ST_Intersects(a.geom, $1::geometry)
+      WHERE ST_Intersects(a.geom, $1::geometry)${andWhereA}${andWhereB}
       HAVING COUNT(*) > 0`;
   }
 
@@ -539,7 +542,14 @@ async function extractMetrics(geomWKT, subfaseKey = null, extraData = {}, lpKey 
   });
 
   const rows = (await Promise.all(queries)).filter(Boolean).flat();
-  return { rows, errosQuery, nCamadas: camadas.size };
+
+  // Lista de tabelas consultadas — usada no diagnóstico de zero-pontos
+  const tabelasConsultadas = [...camadas.values()].map(c => {
+    const schema = c.schema || 'edgv';
+    return c.tabela.includes('.') ? c.tabela : `${schema}.${c.tabela}`;
+  });
+
+  return { rows, errosQuery, nCamadas: camadas.size, tabelasConsultadas };
 }
 
 // ------------------------------------------------------------------ //
@@ -689,10 +699,17 @@ function consolidate(bySubfase, detalhes, multEscala = 1.0, lpKey = 'mapeamento_
   const pesos    = loadPesos(lpKey);
   const multVF   = pesos.multiplicadores_subfase['verificacao_final']?.valor ?? 1.0;
 
-  // Aplica mult_escala a cada subfase e a verificacao_final
-  const porSubfase = {};
+  // Aplica mult_escala a cada subfase e cap opcional (max_pts) — verificacao_final usa subtotal pós-cap
+  const porSubfase    = {};
+  const capsAplicados = [];
   for (const [k, v] of Object.entries(bySubfase)) {
-    porSubfase[k] = +(v * multEscala).toFixed(2);
+    let scaled = v * multEscala;
+    const maxPts = pesos.multiplicadores_subfase[k]?.max_pts;
+    if (maxPts != null && scaled > maxPts) {
+      capsAplicados.push({ subfase: k, max_pts: maxPts, pts_brutos: +scaled.toFixed(2) });
+      scaled = maxPts;
+    }
+    porSubfase[k] = +scaled.toFixed(2);
   }
 
   const subtotal = Object.values(porSubfase).reduce((a, b) => a + b, 0);
@@ -710,12 +727,13 @@ function consolidate(bySubfase, detalhes, multEscala = 1.0, lpKey = 'mapeamento_
   }));
 
   return {
-    score_total:   +(subtotal + pontosVF).toFixed(2),
-    mult_escala:   +multEscala.toFixed(4),
-    por_subfase:   porSubfaseOrdenado,
-    por_camada:    porCamada,
-    versao_pesos:  pesos.versao,
-    taxa_pts_hora: pesos.taxa_pts_hora ?? null,
+    score_total:    +(subtotal + pontosVF).toFixed(2),
+    mult_escala:    +multEscala.toFixed(4),
+    por_subfase:    porSubfaseOrdenado,
+    por_camada:     porCamada,
+    versao_pesos:   pesos.versao,
+    taxa_pts_hora:  pesos.taxa_pts_hora ?? null,
+    caps_aplicados: capsAplicados,
   };
 }
 
@@ -728,18 +746,26 @@ async function calculateScore(geomWKT, subfaseKey = null, multEscala = 1.0, extr
   // Evita contabilizar feições fora do Brasil (ex.: UTs de fronteira).
   const geomEfetivo = await clipToUF(geomWKT);
 
-  const { rows: metrics, errosQuery, nCamadas } = await extractMetrics(geomEfetivo, subfaseKey, extraData, lpKey);
+  const { rows: metrics, errosQuery, nCamadas, tabelasConsultadas } = await extractMetrics(geomEfetivo, subfaseKey, extraData, lpKey);
 
   if (metrics.length === 0) {
-    console.warn(`[zero-pts] banco=${require('./db').getEdgvDb()} subfase=${subfaseKey} lp=${lpKey} nCamadas=${nCamadas} erros=${errosQuery.length}`);
+    // Log diagnóstico: mostra quais tabelas foram consultadas.
+    // Para confirmar se a tabela tem dados globalmente, rode no banco:
+    //   SELECT COUNT(*) FROM edgv.<tabela>;
+    console.warn(
+      `[zero-pts] banco=${require('./db').getEdgvDb()} subfase=${subfaseKey} lp=${lpKey}` +
+      ` nCamadas=${nCamadas} erros=${errosQuery.length}` +
+      ` tabelas=[${tabelasConsultadas.join(', ')}]`
+    );
   }
 
   const { bySubfase, detalhes } = applyWeights(metrics, subfaseKey, lpKey);
   const resultado = consolidate(bySubfase, detalhes, multEscala, lpKey);
 
   // Diagnóstico incluso na resposta — frontend exibe aviso quando pontuação é zero
-  resultado.n_metricas_brutas = metrics.length;
-  resultado.lp_mapeamento     = lpKey;
+  resultado.n_metricas_brutas   = metrics.length;
+  resultado.lp_mapeamento       = lpKey;
+  resultado.tabelas_consultadas = tabelasConsultadas;
   if (errosQuery.length) resultado.avisos_query = errosQuery.slice(0, 5);
 
   return resultado;

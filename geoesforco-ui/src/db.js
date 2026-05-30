@@ -27,6 +27,10 @@ const refPool = new Pool({ ...BASE, database: process.env.REF_DB || 'insumos_ofi
 // Configurável via OSM_DB (padrão: insumos_osm).
 const osmPool = new Pool({ ...BASE, database: process.env.OSM_DB || 'insumos_osm' });
 
+// Pool para o banco de pontuação — armazena scores calculados por MI e LP.
+// Configurável via GEOESFORCO_DB (padrão: geoesforco).
+const geoesforcoPool = new Pool({ ...BASE, database: process.env.GEOESFORCO_DB || 'geoesforco' });
+
 function getEdgvDb()  { return _edgvDb; }
 function getEdgvPool(){ return _edgvPool; }
 
@@ -64,4 +68,4 @@ const edgvPool = new Proxy({}, {
   get(_, prop) { return _edgvPool[prop].bind(_edgvPool); },
 });
 
-module.exports = { sapPool, edgvPool, refPool, osmPool, getEdgvDb, getEdgvPool, setEdgvDb, swapEdgvPool };
+module.exports = { sapPool, edgvPool, refPool, osmPool, geoesforcoPool, getEdgvDb, getEdgvPool, setEdgvDb, swapEdgvPool };

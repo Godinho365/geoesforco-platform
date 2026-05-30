@@ -402,9 +402,9 @@ const dbBadge     = document.getElementById('db-badge');
 const dbStatus    = document.getElementById('db-status');
 
 function setDbBadge(db) {
-  const LABELS = { insumos_oficiais: 'Oficial', insumo_osm: 'OSM' };
+  const LABELS = { insumos_oficiais: 'Insumos' };
   dbBadge.textContent = LABELS[db] || db.slice(0, 10);
-  dbBadge.className   = 'chip ' + (db === 'insumo_osm' ? 'chip-green' : 'chip-blue');
+  dbBadge.className   = 'chip chip-blue';
   syncTopbar(db);   // L3
 }
 
@@ -449,8 +449,7 @@ async function conectarBanco(db) {
 fetch('/api/databases/ativo')
   .then(r => r.json())
   .then(({ ativo }) => {
-    const known = ['insumos_oficiais', 'insumo_osm'];
-    if (known.includes(ativo)) { selDb.value = ativo; }
+    if (ativo === 'insumos_oficiais') { selDb.value = ativo; }
     else { selDb.value = '_custom'; customDbRow.classList.remove('hidden'); inputDbName.value = ativo; }
     setDbBadge(ativo);
     loadMoldura();
@@ -1658,10 +1657,135 @@ async function calcularArquivoLote() {
 }
 
 /**
+ * Calcula TODAS as subfases para cada feição do arquivo individualmente,
+ * nomeando cada resultado pelo campo MI da aux_moldura_a.
+ */
+async function _calcularArquivoLoteTodas() {
+  const indices  = [..._arquivoSelectedIndices];
+  const total    = indices.length;
+  const btnCalc  = document.getElementById('btn-calcular');
+  const progEl   = document.getElementById('lote-progress');
+  const progFill = document.getElementById('progress-fill');
+  const progTx   = document.getElementById('progress-text');
+
+  btnCalc.disabled = true;
+  document.getElementById('loading').classList.add('hidden');
+  progEl.classList.remove('hidden');
+  progFill.style.width = '2%';
+  progTx.textContent   = `Calculando todas as subfases — 0 / ${total}…`;
+  closeResultPanel();
+
+  const resultados  = [];
+  const erros       = [];
+  const mapaResults = [];
+
+  for (let k = 0; k < indices.length; k++) {
+    const i    = indices[k];
+    const feat = _arquivoFeatures[i];
+    const lpKey = getLpKey();
+
+    const reqBody = {
+      geom_geojson:      [feat.geojson],
+      denominador_escala: currentDenominadorEscala || 25000,
+    };
+    if (lpKey) reqBody.lp_keys = [lpKey];
+    if (curvaNivelToken) reqBody.curva_nivel_token = curvaNivelToken;
+
+    try {
+      const res  = await fetch('/api/calcular/mi', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(reqBody),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.erro || `HTTP ${res.status}`);
+      const lp = data.lps?.[0];
+      if (!lp) throw new Error('Sem dados de LP na resposta');
+
+      const por_subfase = {};
+      const por_camada  = [];
+      Object.entries(lp.subfases || {}).forEach(([key, sf]) => {
+        por_subfase[key] = sf.pts ?? 0;
+        (sf.por_camada || []).forEach(c => por_camada.push({ ...c, subfase: key }));
+      });
+
+      const nome = data.mi || _featureLabel(feat.properties, `Feição ${i + 1}`);
+      const item = {
+        ut_id:              null,
+        nome,
+        mi:                 data.mi || null,
+        subfase_key:        '__all__',
+        denominador_escala: data.escala,
+        mult_escala:        data.mult_escala,
+        score_total:        lp.total,
+        por_subfase,
+        por_camada,
+        lp_mapeamento:      lp.key,
+        lp_nome:            lp.nome,
+      };
+      resultados.push(item);
+      mapaResults.push({ index: i, nome, result: {
+        score_total:        lp.total,
+        por_subfase,
+        subfase_key:        '__all__',
+        denominador_escala: data.escala,
+      }});
+    } catch (e) {
+      const nome = _featureLabel(feat.properties, `Feição ${i + 1}`);
+      erros.push({ nome, erro: e.message });
+      mapaResults.push({ index: i, nome, erro: e.message });
+    }
+
+    const pct = Math.round(((k + 1) / total) * 100);
+    progFill.style.width = `${pct}%`;
+    progTx.textContent   = `Todas as subfases — ${k + 1} / ${total}…`;
+  }
+
+  progEl.classList.add('hidden');
+  progFill.style.width = '0%';
+  btnCalc.disabled = false;
+
+  if (resultados.length) {
+    resultados.sort((a, b) => b.score_total - a.score_total);
+    lastBatchResultados = resultados;
+    document.getElementById('btn-ver-ranking').classList.remove('hidden');
+    _renderArquivoBatchMap(mapaResults);
+    // Auto-save no histórico
+    GECalcStore.save({
+      tipo:          'batch',
+      label:         `${_arquivoCurrentFileName || 'Arquivo'} — ${resultados.length} feições · Todas as subfases`,
+      subfase_key:   '__all__',
+      subfase_nome:  'Todas as subfases',
+      score:         resultados.reduce((s, r) => s + r.score_total, 0),
+      escala:        resultados[0]?.denominador_escala ?? null,
+      lp_mapeamento: resultados[0]?.lp_mapeamento ?? null,
+      banco:         document.getElementById('db-badge')?.textContent?.trim() || null,
+      n_uts:         resultados.length,
+      result:        { resultados },
+    });
+    renderRanking(resultados, erros);
+  } else {
+    showToast(`Todas as ${total} feições falharam.`, 'error');
+  }
+
+  const nErros = erros.length;
+  if (nErros)
+    showToast(`${resultados.length} de ${total} feições calculadas (${nErros} com erro)`, 'warn');
+  else
+    showToast(`${total} feições calculadas — veja o ranking`, 'ok');
+}
+
+/**
  * Calcula TODAS as subfases de uma vez para a UT/geometria atual,
  * chamando /api/calcular/mi e exibindo o resultado consolidado.
  */
 async function calcularTodasSubfases() {
+  // Multi-feição de arquivo → calcula cada uma separada, nomeada pelo MI
+  if (!currentUtId && _arquivoSelectedIndices.size > 1) {
+    await _calcularArquivoLoteTodas();
+    return;
+  }
+
   const loading = document.getElementById('loading');
   const btnCalc = document.getElementById('btn-calcular');
   btnCalc.disabled = true;
@@ -1681,7 +1805,6 @@ async function calcularTodasSubfases() {
         denominador_escala:  currentDenominadorEscala || 25000,
       };
     } else if (_arquivoSelectedIndices.size > 0) {
-      // Modo arquivo multi-feição: coleta as geometrias selecionadas
       const geoms = [..._arquivoSelectedIndices].map(i => _arquivoFeatures[i]?.geojson).filter(Boolean);
       if (!geoms.length) throw new Error('Nenhuma geometria disponível.');
       reqBody = {
@@ -1735,6 +1858,23 @@ async function calcularTodasSubfases() {
     lastResult = synth;
     renderResultado(synth);
     openResultPanel();
+
+    // Abre ranking/estatísticas para permitir salvar no GeoEsforço
+    const batchItem = {
+      ut_id:              currentUtId || null,
+      nome:               currentUtNome || 'UT',
+      subfase_key:        '__all__',
+      denominador_escala: synth.denominador_escala,
+      mult_escala:        synth.mult_escala,
+      score_total:        synth.score_total,
+      por_subfase:        synth.por_subfase,
+      por_camada:         synth.por_camada,
+      lp_mapeamento:      synth.lp_mapeamento,
+      lp_nome:            synth.lp_nome,
+    };
+    lastBatchResultados = [batchItem];
+    document.getElementById('btn-ver-ranking').classList.remove('hidden');
+    renderRanking([batchItem], []);
 
     GECalcStore.save({
       tipo:          'single',
@@ -2136,16 +2276,32 @@ function renderResultado(result) {
   // Aviso diagnóstico
   const zeroMetricasHtml = (result.n_metricas_brutas === 0)
     ? (() => {
-        const avisos  = result.avisos_query;
-        const detalhe = avisos?.length ? `<br><small style="opacity:.75">${avisos[0]}</small>` : '';
+        const avisos   = result.avisos_query;
+        const tabelas  = result.tabelas_consultadas;
+        const detalhe  = avisos?.length ? `<br><small style="opacity:.75">${avisos[0]}</small>` : '';
+        const tabelasHtml = tabelas?.length
+          ? `<br><small style="opacity:.65">Tabelas consultadas: <code>${tabelas.map(t => t.replace('edgv.', '')).join('</code>, <code>')}</code></small>`
+          : '';
         const temErros = avisos?.length > 0;
         return `<div class="zero-metricas-warn">
           ${temErros
-            ? `⚠ Erro ao consultar tabelas no banco EDGV — verifique se o esquema <code>edgv</code> existe e as tabelas estão populadas.${detalhe}`
-            : `ℹ Nenhuma feição encontrada no banco EDGV para esta área e subfase.<br><small style="opacity:.75">Banco possivelmente vazio ou área sem dados vetorizados.</small>`
+            ? `⚠ Erro ao consultar tabelas no banco EDGV — verifique se o esquema <code>edgv</code> existe e as tabelas estão populadas.${detalhe}${tabelasHtml}`
+            : `ℹ Nenhuma feição encontrada nesta área para esta subfase.${tabelasHtml}<br><small style="opacity:.65">As tabelas acima foram consultadas sem erros mas não retornaram feições neste polígono. Verifique se há dados populados nessa área no banco EDGV.</small>`
           }
         </div>`;
       })() : '';
+
+  // Aviso de teto aplicado (caps_aplicados)
+  const capsHtml = result.caps_aplicados?.length
+    ? `<div class="cap-aviso">🔒 Teto aplicado: ${
+        result.caps_aplicados.map(c => {
+          const nome = allSubfases.find(s => s.key === c.subfase)?.nome
+                    || SF_NOMES[c.subfase] || c.subfase;
+          const nomeShort = nome.replace(/^Extração (d[eoa] )?/i, '');
+          return `<strong>${nomeShort}</strong> limitado a ${c.max_pts.toLocaleString('pt-BR')} pts (bruto: ${c.pts_brutos.toLocaleString('pt-BR', { maximumFractionDigits: 0 })})`;
+        }).join(', ')
+      }</div>`
+    : '';
 
   // D1 · Barras de subfase modernas (V4 · cores semânticas)
   const sortedEntries = [...sfEntries].sort(([, a], [, b]) => b - a);
@@ -2204,6 +2360,7 @@ function renderResultado(result) {
 
   document.getElementById('pr-body').innerHTML = `
     ${zeroMetricasHtml}
+    ${capsHtml}
     ${statChipsHtml}
     ${escalaHtml}${cnUsadaHtml}${lpBadgeHtml}
     ${sfBarsHtml}
@@ -2545,6 +2702,7 @@ function renderRanking(resultados, erros) {
       <button class="btn btn-secondary btn-sm" id="btn-exportar-lote">⬇ Exportar JSON</button>
       <button class="btn btn-secondary btn-sm" id="btn-exportar-lote-csv">⬇ Exportar CSV</button>
       ${!modoArquivo ? `<button class="btn btn-primary btn-sm" id="btn-abrir-dif-lote">💾 Salvar dificuldade no SAP</button>` : ''}
+      <button class="btn btn-success btn-sm" id="btn-salvar-geoesforco">🗄 Salvar no GeoEsforço</button>
       <button class="btn btn-secondary btn-sm" id="btn-abrir-distrib">👥 Distribuir</button>
     </div>
   `;
@@ -2588,6 +2746,31 @@ function renderRanking(resultados, erros) {
       href:     URL.createObjectURL(blob),
       download: modoArquivo ? 'ranking_arquivo.csv' : 'ranking_lote.csv',
     }).click();
+  });
+
+  // Botão Salvar no GeoEsforço
+  document.getElementById('btn-salvar-geoesforco').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-salvar-geoesforco');
+    btn.disabled = true;
+    btn.textContent = '⏳ Salvando…';
+    try {
+      const resp = await fetch('/api/pontuacao/salvar-lote', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ resultados }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.erro || `HTTP ${resp.status}`);
+      if (data.salvos === 0 && data.erros > 0) {
+        throw new Error(data.erroExemplo || `0 salvos, ${data.erros} erros`);
+      }
+      btn.textContent = `✅ ${data.salvos} UT${data.salvos !== 1 ? 's' : ''} salvas`;
+      if (data.erros > 0) btn.title = `${data.erros} erro(s): ${data.erroExemplo || '—'}`;
+    } catch (e) {
+      btn.textContent = '❌ Erro ao salvar';
+      btn.disabled = false;
+      btn.title = e.message;
+    }
   });
 
   // Botão Salvar dificuldade no SAP (somente modo SAP)

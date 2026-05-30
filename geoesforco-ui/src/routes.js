@@ -16,6 +16,7 @@ const {
 const sapMapping       = require("./sapMapping");
 const { parseFile: parseCurvaNivel } = require("./curvaNivelParser");
 const { parseGeomFile }              = require("./geomParser");
+const { router: rotasPontuacao, salvarPontuacao } = require("./routes_pontuacao");
 
 const LP_DIR = path.join(__dirname, "../../calculadora_pontos");
 const _mapRoutesCache = new Map();
@@ -1074,6 +1075,8 @@ router.post("/calcular", async (req, res) => {
     const multEscala = calcMultEscala(denominadorEscala, lpKey);
     const extraData  = resolveExtraData(req.body);
     const score = await calculateScore(geomWKT, subfaseKey, multEscala, extraData, lpKey);
+    salvarPontuacao(geomWKT, score, lpKey, denominadorEscala, subfaseKey || null)
+      .catch(e => console.warn('[pontuacao] auto-save:', e.message.split('\n')[0]));
     res.json({
       ...score,
       subfase_key:        subfaseKey,
@@ -1145,6 +1148,9 @@ router.post("/calcular/lote", async (req, res) => {
                 Object.entries(result.subfases).map(([k, v]) => [k, v.pts ?? 0])
               );
               const por_camada = Object.values(result.subfases).flatMap(v => v.por_camada || []);
+              const scoreObj = { score_total: result.total, por_subfase, por_camada, mult_escala: multEscala, versao_pesos: null };
+              salvarPontuacao(r.wkt, scoreObj, lpKey, r.denominador_escala, null)
+                .catch(e => console.warn('[pontuacao] auto-save:', e.message.split('\n')[0]));
               return {
                 ut_id:             r.id,
                 nome:              r.nome,
@@ -1172,6 +1178,8 @@ router.post("/calcular/lote", async (req, res) => {
                 erro:  `subfase id=${r.subfase_id} não mapeada — consulte /api/sap-mapping/status`,
               };
             const score = await calculateScore(r.wkt, sfKey, multEscala, extraData, lpKey);
+            salvarPontuacao(r.wkt, score, lpKey, r.denominador_escala, sfKey)
+              .catch(e => console.warn('[pontuacao] auto-save:', e.message.split('\n')[0]));
             return { ut_id: r.id, nome: r.nome, geom: r.geom, subfase_key: sfKey, denominador_escala: r.denominador_escala, lp_nome: r.lp_nome, ...score };
           } catch (e) {
             return { ut_id: r.id, nome: r.nome, geom: r.geom, erro: e.message };
@@ -1256,6 +1264,8 @@ router.post("/calcular/lote/agregado", async (req, res) => {
           try {
             const multEscala = calcMultEscala(r.denominador_escala, lpKeyLote);
             const score = await calculateScore(r.wkt, sfKey, multEscala, extraData, lpKeyLote);
+            salvarPontuacao(r.wkt, score, lpKeyLote, r.denominador_escala, sfKey)
+              .catch(e => console.warn('[pontuacao] auto-save:', e.message.split('\n')[0]));
             return {
               ut_id: r.id,
               nome: r.nome,
@@ -1570,6 +1580,17 @@ router.post("/calcular/mi", async (req, res) => {
       if (!geomWKT)
         return res.status(400).json({ erro: "Geometria inválida ou nula." });
 
+      // Busca o MI correspondente ao centroide da geometria (melhor nome para feições de arquivo)
+      try {
+        const { rows: miRows } = await edgvPool.query(
+          `SELECT mi FROM edgv.aux_moldura_a
+           WHERE ST_Contains(geom, ST_Centroid($1::geometry))
+           LIMIT 1`,
+          [geomWKT]
+        );
+        if (miRows[0]?.mi) utInfoList = [{ mi: miRows[0].mi }];
+      } catch (_) { /* sem MI — não crítico */ }
+
       // LP keys: sempre ambas por padrão
       lpKeysToCalc = Array.isArray(lp_keys) && lp_keys.length > 0
         ? [...new Set(lp_keys)]
@@ -1643,12 +1664,26 @@ router.post("/calcular/mi", async (req, res) => {
           timeoutPromise,
         ]);
 
-        return { key: lpKey, nome: lpNome, total: result.total, subfases: result.subfases };
+        const lpResult = { key: lpKey, nome: lpNome, total: result.total, subfases: result.subfases };
+        const scoreObj = {
+          score_total:  result.total,
+          por_subfase:  Object.fromEntries(Object.entries(result.subfases).map(([k, v]) => [k, v.pts ?? 0])),
+          por_camada:   Object.values(result.subfases).flatMap(v => v.por_camada || []),
+          mult_escala:  multEscala,
+          versao_pesos: null,
+        };
+        salvarPontuacao(geomWKT, scoreObj, lpKey, denomEscala, null)
+          .catch(e => console.warn('[pontuacao] auto-save:', e.message.split('\n')[0]));
+        return lpResult;
       })
     );
 
+    // mi: extraído do utInfoList (modo arquivo) ou do primeiro utRow (modo SAP)
+    const miCode = utInfoList[0]?.mi || null;
+
     res.json({
       uts:         utInfoList.map(r => ({ id: r.id, nome: r.nome, lp_nome: r.lp_nome })),
+      mi:          miCode,
       escala:      denomEscala,
       mult_escala: multEscala,
       area_km2:    areaKm2,
@@ -1738,6 +1773,9 @@ router.post("/calcular/mi/refine", async (req, res) => {
       if (tempPool) tempPool.end().catch(() => {});
     }
 
+    salvarPontuacao(geomWKT, resultado, lp_key, denomEscala, subfase_key)
+      .catch(e => console.warn('[pontuacao] auto-save:', e.message.split('\n')[0]));
+
     const bancoLabel = conn?.host
       ? `${conn.host}:${conn.port || 5432}/${conn.database || conn.banco || banco}`
       : banco;
@@ -1745,10 +1783,12 @@ router.post("/calcular/mi/refine", async (req, res) => {
     res.json({
       subfase_key,
       lp_key,
-      banco: bancoLabel,
-      pts:        resultado.score_total,
-      por_camada: (resultado.por_camada || []).filter(d => d.subfase === subfase_key),
-      avisos:     resultado.avisos_query || [],
+      banco:               bancoLabel,
+      pts:                 resultado.score_total,
+      n_metricas_brutas:   resultado.n_metricas_brutas ?? 0,
+      tabelas_consultadas: resultado.tabelas_consultadas || [],
+      por_camada:          (resultado.por_camada || []).filter(d => d.subfase === subfase_key),
+      avisos:              resultado.avisos_query || [],
     });
 
   } catch (e) {
@@ -1788,5 +1828,7 @@ router.get("/health/osm", async (req, res) => {
     res.status(500).json({ ok: false, erro: e.message });
   }
 });
+
+router.use('/pontuacao', rotasPontuacao);
 
 module.exports = router;

@@ -43,10 +43,10 @@
     "ext_limites":                        { "id": 7,  "valor": 1.5 },
     "ext_intersecao_hidro_transporte":    { "id": 8,  "valor": 0.8 },
     "ext_area_edificada":                 { "id": 9,  "valor": 1.2 },
-    "ext_edificacao":                     { "id": 10, "valor": 0.5},
+    "ext_edificacao":                     { "id": 10, "valor": 0.1, "max_pts": 100000 },
     "ext_vegetacao":                      { "id": 11, "valor": 2.0 },
     "ext_planimetria":                    { "id": 12, "valor": 2.0 },
-    "verificacao_final":                  { "id": 13, "valor": 0.2 }
+    "verificacao_final":                  { "id": 13, "valor": 0.05 }
   },
 
   "curva_densidade_entroncamentos": {

@@ -19,9 +19,9 @@
       "nome": "Extração da Hidrografia e Altimetria",
       "_nota": "Orto: rios/canais com nome + massas d'água com nome + curva de nível (km total). Mesmo banco EDGV.",
       "camadas": [
-        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "km", "where": "nome IS NOT NULL" },
-        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "dens_conf", "join": "elemnat_trecho_drenagem_l", "where": "nome IS NOT NULL", "_descricao": "Confluências de drenagem com nome (densidade conf/km — ST_Node)" },
-        { "tabela": "elemnat_curva_nivel_l", "metrica": "qtd", "join": "elemnat_trecho_drenagem_l", "_descricao": "Interseção curva de nível × drenagem" },
+        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "km", "where": "observacao = 'OSM'" },
+        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "dens_conf", "join": "elemnat_trecho_drenagem_l", "where": "observacao = 'OSM'", "_descricao": "Confluências de drenagem OSM (densidade conf/km — ST_Node)" },
+        { "tabela": "elemnat_curva_nivel_l", "metrica": "qtd", "join": "elemnat_trecho_drenagem_l", "where_join": "observacao = 'OSM'", "_descricao": "Interseção curva de nível × drenagem" },
         { "tabela": "centroide_massa_dagua_p", "metrica": "qtd", "where": "nome IS NOT NULL", "_descricao": "Centroides de massa d'água com nome" },
         { "tabela": "delimitador_massa_dagua_l", "metrica": "km_named_body", "join": "centroide_massa_dagua_p", "_descricao": "km de delimitador de massa d'água nomeada (ST_Polygonize → polígonos com centroide nomeado)" }
       ]
@@ -92,9 +92,9 @@
       "_nota": "União de todas as camadas das demais subfases — verifica o conjunto completo da UT.",
       "camadas": [
         { "tabela": "infra_ferrovia_l",                        "metrica": "km" },
-        { "tabela": "elemnat_trecho_drenagem_l",               "metrica": "km",          "where": "nome IS NOT NULL" },
-        { "tabela": "elemnat_trecho_drenagem_l",               "metrica": "dens_conf",   "join": "elemnat_trecho_drenagem_l", "where": "nome IS NOT NULL" },
-        { "tabela": "elemnat_curva_nivel_l",                   "metrica": "qtd",         "join": "elemnat_trecho_drenagem_l" },
+        { "tabela": "elemnat_trecho_drenagem_l",               "metrica": "km",          "where": "observacao = 'OSM'" },
+        { "tabela": "elemnat_trecho_drenagem_l",               "metrica": "dens_conf",   "join": "elemnat_trecho_drenagem_l", "where": "observacao = 'OSM'" },
+        { "tabela": "elemnat_curva_nivel_l",                   "metrica": "qtd",         "join": "elemnat_trecho_drenagem_l", "where_join": "observacao = 'OSM'" },
         { "tabela": "centroide_massa_dagua_p",                 "metrica": "qtd",         "where": "nome IS NOT NULL" },
         { "tabela": "delimitador_massa_dagua_l",               "metrica": "km_named_body","join": "centroide_massa_dagua_p" },
         { "tabela": "llp_localidade_p",                       "metrica": "qtd",         "where": "tipo IN (1, 4)" },

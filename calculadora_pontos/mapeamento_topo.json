@@ -18,9 +18,9 @@
       "sap_nome_contains": ["hidrografia e altimetria"],
       "nome": "Extração da Hidrografia e Altimetria",
       "camadas": [
-        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "km" },
-        { "tabela": "elemnat_curva_nivel_l", "metrica": "qtd", "join": "elemnat_trecho_drenagem_l", "_descricao": "Interseção curva de nível × drenagem" },
-        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "dens_conf", "join": "elemnat_trecho_drenagem_l", "_descricao": "Confluências de drenagem (densidade conf/km — topologia ST_Node)" },
+        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "km", "where": "observacao = 'OSM'" },
+        { "tabela": "elemnat_curva_nivel_l", "metrica": "qtd", "join": "elemnat_trecho_drenagem_l", "where_join": "observacao = 'OSM'", "_descricao": "Interseção curva de nível × drenagem" },
+        { "tabela": "elemnat_trecho_drenagem_l", "metrica": "dens_conf", "join": "elemnat_trecho_drenagem_l", "where": "observacao = 'OSM'", "_descricao": "Confluências de drenagem (densidade conf/km — topologia ST_Node)" },
         { "tabela": "centroide_massa_dagua_p", "metrica": "qtd", "_descricao": "Centroides de massa d'água" },
         { "tabela": "delimitador_massa_dagua_l", "metrica": "km"}
       ]
@@ -97,6 +97,7 @@
           "metrica": "qtd",
           "join": "infra_via_deslocamento_l",
           "banco_join": "insumo_osm",
+          "where": "observacao = 'OSM'",
           "_descricao": "Cruzamentos drenagem (insumos_oficiais) × vias (insumo_osm) — pontos de interseção"
         }
       ]
@@ -170,9 +171,9 @@
       "_nota": "União de todas as camadas das demais subfases — verifica o conjunto completo da UT.",
       "camadas": [
         { "tabela": "infra_ferrovia_l",                                "metrica": "km" },
-        { "tabela": "elemnat_trecho_drenagem_l",                       "metrica": "km" },
-        { "tabela": "elemnat_curva_nivel_l",                           "metrica": "qtd",      "join": "elemnat_trecho_drenagem_l" },
-        { "tabela": "elemnat_trecho_drenagem_l",                       "metrica": "dens_conf", "join": "elemnat_trecho_drenagem_l" },
+        { "tabela": "elemnat_trecho_drenagem_l",                       "metrica": "km",        "where": "observacao = 'OSM'" },
+        { "tabela": "elemnat_curva_nivel_l",                           "metrica": "qtd",       "join": "elemnat_trecho_drenagem_l", "where_join": "observacao = 'OSM'" },
+        { "tabela": "elemnat_trecho_drenagem_l",                       "metrica": "dens_conf", "join": "elemnat_trecho_drenagem_l", "where": "observacao = 'OSM'" },
         { "tabela": "centroide_massa_dagua_p",                         "metrica": "qtd" },
         { "tabela": "delimitador_massa_dagua_l",                       "metrica": "km" },
         { "tabela": "llp_localidade_p",                                "metrica": "qtd" },
@@ -190,7 +191,7 @@
         { "tabela": "llp_limite_legal_l",                              "metrica": "km" },
         { "tabela": "delimitador_limite_especial_l",                   "metrica": "km" },
         { "tabela": "centroide_limite_especial_p",                     "metrica": "qtd" },
-        { "tabela": "elemnat_trecho_drenagem_l",                       "metrica": "qtd",      "join": "infra_via_deslocamento_l", "banco_join": "insumo_osm" },
+        { "tabela": "elemnat_trecho_drenagem_l",                       "metrica": "qtd",      "join": "infra_via_deslocamento_l", "banco_join": "insumo_osm", "where": "observacao = 'OSM'" },
         { "tabela": "cobter_area_edificada_a",                         "metrica": "perim" },
         { "tabela": "constr_edificacao_p",                             "metrica": "qtd" },
         { "tabela": "constr_edificacao_a",                             "metrica": "qtd" },

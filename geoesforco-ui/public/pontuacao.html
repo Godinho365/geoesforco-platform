@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoEsforço — Pontuação por MI</title>
+  <link rel="icon" href="logo.png">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d1b2a;
+  --bg2:     #111d35;
+  --bg3:     #0a1628;
+  --border:  #1a3358;
+  --text:    #cfd8dc;
+  --muted:   #546e7a;
+  --accent:  #4fc3f7;
+  --accent2: #0288d1;
+  --success: #66bb6a;
+  --warn:    #ffa726;
+  --danger:  #ef5350;
+  --font:    'Segoe UI', system-ui, sans-serif;
+}
+html, body { height: 100%; overflow: hidden; }
+body { font-family: var(--font); font-size: 13px; background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+button, input, select { font-family: var(--font); }
+a { color: inherit; text-decoration: none; }
+.hidden { display: none !important; }
+
+/* ── Header ── */
+#header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; height: 46px; min-height: 46px;
+  background: linear-gradient(160deg, #0b1e38 0%, #0a2e52 100%);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; z-index: 100;
+}
+.h-logo { display: flex; align-items: center; gap: 8px; }
+.h-logo-img      { height: 30px; width: auto; object-fit: contain; }
+.h-logo-fallback { display: flex; align-items: center; }
+.h-back {
+  padding: 4px 11px;
+  background: rgba(79,195,247,.1); border: 1px solid rgba(79,195,247,.25);
+  border-radius: 6px; color: var(--accent); font-size: 11px; font-weight: 600;
+  transition: background .15s; white-space: nowrap;
+}
+.h-back:hover { background: rgba(79,195,247,.18); }
+.h-logo-mark {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, #4fc3f7, #0288d1);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 900; color: #fff; flex-shrink: 0;
+}
+.h-title { font-size: 14px; font-weight: 700; color: #fff; }
+#header h1 { font-size: 14px; font-weight: 600; color: var(--accent); }
+.h-sep { flex: 1; }
+.h-nav-link {
+  padding: 4px 9px; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); font-size: 11px; transition: all .15s; white-space: nowrap;
+}
+.h-nav-link:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Layout ── */
+#app { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Sidebar ── */
+#sidebar {
+  width: 260px; min-width: 260px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.sb-section {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.sb-label {
+  font-size: 10px; font-weight: 700; letter-spacing: .7px;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 8px;
+}
+.field-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.field-row label { font-size: 11px; color: var(--muted); }
+.inp, .sel {
+  width: 100%; padding: 6px 8px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text); font-size: 12px; outline: none;
+}
+.inp:focus, .sel:focus { border-color: var(--accent); }
+.btn-calcular {
+  width: 100%; padding: 8px; border-radius: 6px; border: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: opacity .15s;
+}
+.btn-calcular:hover { opacity: .85; }
+.btn-calcular:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Status cards ── */
+.status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.status-card {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 10px;
+}
+.status-card .sc-label { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+.status-card .sc-value { font-size: 18px; font-weight: 700; color: var(--accent); }
+.status-card .sc-sub   { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* ── Main content ── */
+#main {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden; background: var(--bg);
+}
+
+/* ── Toolbar ── */
+#toolbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+  background: var(--bg2); flex-shrink: 0;
+}
+.lp-tab {
+  padding: 4px 12px; border-radius: 16px; border: 1px solid var(--border);
+  color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer;
+  background: transparent; transition: all .15s;
+}
+.lp-tab.active {
+  background: rgba(79,195,247,.15); border-color: var(--accent); color: var(--accent);
+}
+.tb-sep { flex: 1; }
+#inp-filtro-mi {
+  width: 200px; padding: 4px 8px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text); font-size: 12px; outline: none;
+}
+#inp-filtro-mi:focus { border-color: var(--accent); }
+
+/* ── Progress ── */
+#progress-area {
+  padding: 10px 14px; background: var(--bg3);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.progress-bar-bg {
+  height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 6px;
+}
+.progress-bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent));
+  border-radius: 2px; transition: width .3s;
+  width: 0%;
+}
+#progress-text { font-size: 11px; color: var(--muted); }
+#progress-log {
+  margin-top: 6px; max-height: 60px; overflow-y: auto;
+  font-size: 10px; color: var(--muted); line-height: 1.5;
+}
+
+/* ── Tabela ── */
+#table-area { flex: 1; overflow: auto; padding: 0; }
+table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--bg2); padding: 8px 10px;
+  text-align: left; font-size: 10px; font-weight: 700;
+  letter-spacing: .5px; text-transform: uppercase;
+  color: var(--muted); border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody tr { border-bottom: 1px solid rgba(26,51,88,.5); transition: background .1s; }
+tbody tr:hover { background: rgba(79,195,247,.04); }
+td { padding: 7px 10px; vertical-align: top; white-space: nowrap; }
+td.mi-cell { font-weight: 700; color: var(--accent); }
+td.score-cell { font-weight: 700; color: #fff; text-align: right; }
+td.muted-cell { color: var(--muted); font-size: 11px; }
+.subfase-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 8px;
+  font-size: 10px; color: var(--muted);
+}
+.subfase-item span { color: var(--text); font-weight: 600; }
+.err-row td { color: var(--danger); }
+
+/* ── Chip ── */
+.chip {
+  display: inline-block; padding: 2px 7px; border-radius: 10px;
+  font-size: 10px; font-weight: 700;
+}
+.chip-blue  { background: rgba(79,195,247,.15); color: var(--accent); border: 1px solid rgba(79,195,247,.3); }
+.chip-green { background: rgba(102,187,106,.15); color: #66bb6a; border: 1px solid rgba(102,187,106,.3); }
+.chip-warn  { background: rgba(255,167,38,.15);  color: var(--warn); border: 1px solid rgba(255,167,38,.3); }
+
+/* ── Painel de detalhe MI ── */
+#mi-panel {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: 0; min-width: 0; overflow: hidden;
+  background: rgba(10,18,34,0.97);
+  backdrop-filter: blur(18px) saturate(1.4);
+  border-left: 1px solid rgba(79,195,247,0.18);
+  box-shadow: -6px 0 32px rgba(0,0,0,0.6);
+  display: flex; flex-direction: column;
+  transition: width .25s cubic-bezier(.4,0,.2,1);
+  z-index: 1100;
+}
+#mi-panel.open { width: 320px; }
+.mip-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px 10px;
+  background: linear-gradient(160deg, #071525 0%, #0a2444 100%);
+  border-bottom: 1px solid rgba(79,195,247,0.15);
+  flex-shrink: 0;
+}
+.mip-info { flex: 1; min-width: 0; }
+.mip-nome { font-size: 15px; font-weight: 800; color: #fff; }
+.mip-sub  { font-size: 10px; color: #81d4fa; margin-top: 2px; }
+.mip-score {
+  background: #4fc3f7; color: #071525;
+  font-weight: 900; font-size: 15px;
+  padding: 4px 11px; border-radius: 20px; white-space: nowrap;
+}
+.mip-close {
+  width: 24px; height: 24px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,.08); color: #90a4ae;
+  cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background .15s;
+}
+.mip-close:hover { background: rgba(255,255,255,.16); color: #fff; }
+.mip-body {
+  flex: 1; overflow-y: auto; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 10px;
+  scrollbar-width: thin; scrollbar-color: #1a3358 transparent;
+  min-width: 320px;
+}
+/* reuse vars from parent */
+.mip-body .stat-chips { display: flex; gap: 6px; }
+.mip-body .stat-chip {
+  flex: 1; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 8px; padding: 7px 8px; text-align: center; min-width: 0;
+}
+.mip-body .stat-n   { display: block; font-size: 14px; font-weight: 800; color: #4fc3f7; line-height: 1.2; }
+.mip-body .stat-lbl { display: block; font-size: 9px; color: #546e7a; margin-top: 2px; text-transform: uppercase; letter-spacing: .5px; }
+.mip-body .escala-chip {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(255,183,77,.06); border: 1px solid rgba(255,183,77,.3);
+  border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #ffb74d;
+}
+.mip-body .cn-chip {
+  background: rgba(102,187,106,.1); border: 1px solid rgba(102,187,106,.3);
+  border-radius: 5px; padding: 4px 10px; font-size: 10px; color: #81c784;
+}
+.mip-body .sf-bars-section { display: flex; flex-direction: column; gap: 7px; }
+.mip-body .sf-bars-title {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  color: #546e7a; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.mip-body .sf-bar-row { display: flex; flex-direction: column; gap: 3px; }
+.mip-body .sf-bar-label { display: flex; align-items: center; gap: 6px; }
+.mip-body .sf-bar-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--sf-c, #4fc3f7); flex-shrink: 0;
+  box-shadow: 0 0 4px var(--sf-c, #4fc3f7);
+}
+.mip-body .sf-bar-name { flex: 1; font-size: 11px; color: #cfd8dc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mip-body .sf-bar-pts  { font-size: 11px; font-weight: 700; color: var(--sf-c, #4fc3f7); white-space: nowrap; flex-shrink: 0; }
+.mip-body .sf-bar-track { height: 5px; background: rgba(255,255,255,.06); border-radius: 3px; overflow: hidden; }
+.mip-body .sf-bar-fill  {
+  height: 100%; border-radius: 3px; background: var(--sf-c, #4fc3f7);
+  width: 0%; transition: width .7s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 0 6px var(--sf-c, #4fc3f7); opacity: .85;
+}
+.mip-body .detail-block summary { font-size: 11px; color: #546e7a; cursor: pointer; padding: 4px 0; user-select: none; }
+.mip-body .detail-block summary:hover { color: #4fc3f7; }
+.mip-body .cam-table { table-layout: fixed; width: 100%; border-collapse: collapse; font-size: 11px; }
+.mip-body .cam-table th:nth-child(1), .mip-body .cam-table td:nth-child(1) { width: 52%; }
+.mip-body .cam-table th:nth-child(2), .mip-body .cam-table td:nth-child(2) { width: 28%; }
+.mip-body .cam-table th:nth-child(3), .mip-body .cam-table td:nth-child(3) { width: 20%; }
+.mip-body .cam-table th { text-align: left; color: #4fc3f7; padding: 4px 6px; border-bottom: 1px solid #1a3358; font-size: 10px; font-weight: 600; }
+.mip-body .cam-table td { padding: 4px 6px; border-bottom: 1px solid #0a1929; vertical-align: middle; }
+.mip-body .cam-table tr:last-child td { border-bottom: none; }
+.mip-body .cam-valor { font-size: 11px; color: #cfd8dc; white-space: nowrap; }
+.mip-body .cam-metrica { font-size: 10px; color: #546e7a; margin-left: 2px; }
+.mip-body .cam-dens   { font-size: 10px; color: #78909c; margin-left: 2px; }
+.mip-body .cam-fator  { font-size: 10px; color: #80cbc4; margin-left: 3px; font-weight: 600; }
+.mip-body .cam-pts    { text-align: right; font-weight: 700; color: #4fc3f7; font-size: 11px; white-space: nowrap; }
+.mip-body .camada-nome { font-size: 10px; color: #78909c; }
+.mip-body .tag-join { display: inline-block; background: #1565c0; color: #90caf9; font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 3px; }
+.mip-atualizado { font-size: 10px; color: #546e7a; padding-top: 4px; }
+
+/* ── Leaflet dark theme ── */
+.leaflet-container { background: #0a1628 !important; }
+.leaflet-control-attribution { background: rgba(8,16,34,.75) !important; color: #546e7a !important; font-size: 9px !important; }
+.leaflet-control-attribution a { color: #4fc3f7 !important; }
+.leaflet-bar a { background: rgba(13,27,42,.92) !important; color: #cfd8dc !important; border-color: #1a3358 !important; }
+.leaflet-bar a:hover { background: rgba(26,51,88,.9) !important; }
+.leaflet-control-layers { background: rgba(13,27,42,.92) !important; color: #cfd8dc !important; border-color: #1a3358 !important; font-size: 11px !important; }
+.leaflet-control-layers label { color: #cfd8dc !important; }
+.leaflet-control-layers-separator { border-top-color: #1a3358 !important; }
+
+/* ── Mapa tooltip ── */
+.mi-popup { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; min-width: 180px; }
+.mi-popup .mp-mi   { font-size: 14px; font-weight: 700; color: #4fc3f7; margin-bottom: 4px; }
+.mi-popup .mp-score { font-size: 18px; font-weight: 700; color: #fff; }
+.mi-popup .mp-lbl  { font-size: 10px; color: #546e7a; margin-bottom: 2px; }
+.mi-popup table   { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }
+.mi-popup td      { padding: 1px 4px; }
+.mi-popup td:last-child { text-align: right; font-weight: 600; }
+
+/* ── Legenda ── */
+#map-legenda {
+  position: absolute; bottom: 28px; right: 8px; z-index: 1000;
+  background: rgba(13,27,42,.92); border: 1px solid #1a3358;
+  border-radius: 6px; padding: 8px 10px; font-size: 11px; color: #cfd8dc;
+  pointer-events: none;
+}
+#map-legenda .leg-title { font-size: 10px; font-weight: 700; color: #546e7a; margin-bottom: 5px; letter-spacing: .5px; text-transform: uppercase; }
+.leg-bar { display: flex; align-items: center; gap: 6px; }
+.leg-gradient { width: 100px; height: 10px; border-radius: 4px; background: linear-gradient(90deg, #43a047, #ffb300, #e53935); }
+.leg-labels { display: flex; justify-content: space-between; width: 100px; font-size: 9px; color: #546e7a; margin-top: 2px; }
+
+/* ── View tabs (Por MI / Ranking UTs) ── */
+.view-tab {
+  padding: 4px 12px; border-radius: 16px; border: 1px solid var(--border);
+  color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer;
+  background: transparent; transition: all .15s;
+}
+.view-tab.active { background: rgba(102,187,106,.15); border-color: var(--success); color: var(--success); }
+
+/* ── Stats bar do ranking ── */
+#ranking-stats {
+  display: flex; gap: 12px; padding: 8px 14px;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; flex-wrap: wrap;
+}
+.rk-stat { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+.rk-stat .rs-val { font-size: 16px; font-weight: 700; color: var(--accent); }
+.rk-stat .rs-lbl { font-size: 10px; color: var(--muted); }
+
+/* ── Ranking bar ── */
+.rank-bar-bg { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 2px; width: 80px; }
+.rank-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); border-radius: 2px; }
+
+/* ── Rank badge ── */
+.rank-badge {
+  display: inline-block; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--bg3); border: 1px solid var(--border);
+  text-align: center; line-height: 22px; font-size: 10px; font-weight: 700;
+  color: var(--muted);
+}
+.rank-badge.gold   { background: rgba(255,193,7,.15);  border-color: #ffc107; color: #ffc107; }
+.rank-badge.silver { background: rgba(158,158,158,.15); border-color: #9e9e9e; color: #9e9e9e; }
+.rank-badge.bronze { background: rgba(188,103,65,.15);  border-color: #bc6741; color: #bc6741; }
+
+/* ── Subfase badge ── */
+.sf-nome {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  font-size: 10px; background: rgba(79,195,247,.1); color: var(--accent);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;
+}
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────────── -->
+<div id="header">
+  <div class="h-logo">
+    <img src="logo.png" alt="GeoEsforço" class="h-logo-img"
+         onerror="this.style.display='none';document.querySelector('.h-logo-fallback').style.display='flex'">
+    <div class="h-logo-fallback" style="display:none">
+      <div class="h-logo-mark">GE</div>
+    </div>
+    <div class="h-title">GeoEsforço</div>
+  </div>
+  <h1>🏅 Pontuação</h1>
+  <div class="h-sep"></div>
+  <a href="/notas.html"    class="h-nav-link">📊 Notas</a>
+  <a href="/unidades.html" class="h-nav-link">⊞ UTs</a>
+  <a href="/calculos.html" class="h-nav-link">📋 Cálculos</a>
+  <a href="/mi_calc.html"  class="h-nav-link">⚖ Comparação</a>
+  <a href="/"              class="h-back">← Calculadora</a>
+</div>
+
+<!-- ── App ────────────────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+
+    <!-- Calcular -->
+    <div class="sb-section">
+      <div class="sb-label">Calcular e Salvar</div>
+
+      <div class="field-row">
+        <label>Linha de Produção</label>
+        <select id="sel-lp" class="sel">
+          <option value="ambas">Topo + Orto (ambas)</option>
+          <option value="mapeamento_topo">Topo</option>
+          <option value="mapeamento_orto">Orto</option>
+        </select>
+      </div>
+
+      <div class="field-row">
+        <label>MI <span style="color:var(--muted);font-size:10px">(vazio = todos)</span></label>
+        <input id="inp-mi" type="text" class="inp" placeholder="ex: SF-23-Y-A-I" autocomplete="off">
+      </div>
+
+      <div class="field-row">
+        <label>Escala</label>
+        <select id="sel-escala" class="sel">
+          <option value="25000">1:25.000</option>
+          <option value="50000" selected>1:50.000</option>
+          <option value="100000">1:100.000</option>
+          <option value="250000">1:250.000</option>
+        </select>
+      </div>
+
+      <button id="btn-calcular" class="btn-calcular">Calcular e Salvar</button>
+    </div>
+
+    <!-- Status -->
+    <div class="sb-section">
+      <div class="sb-label">MIs armazenados</div>
+      <div class="status-grid">
+        <div class="status-card">
+          <div class="sc-label">Topo</div>
+          <div class="sc-value" id="stat-topo">–</div>
+          <div class="sc-sub" id="stat-topo-dt">–</div>
+        </div>
+        <div class="status-card">
+          <div class="sc-label">Orto</div>
+          <div class="sc-value" id="stat-orto">–</div>
+          <div class="sc-sub" id="stat-orto-dt">–</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- Main -->
+  <div id="main">
+
+    <!-- Toolbar -->
+    <div id="toolbar">
+      <!-- View switcher -->
+      <button class="view-tab active" data-view="mi">Por MI</button>
+      <button class="view-tab"        data-view="ranking">Ranking de UTs</button>
+      <button class="view-tab"        data-view="mapa">Mapa</button>
+      <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+      <!-- LP tabs (visível em ambas as views) -->
+      <button class="lp-tab active" data-lp="mapeamento_topo">Topo</button>
+      <button class="lp-tab"        data-lp="mapeamento_orto">Orto</button>
+      <div class="tb-sep"></div>
+      <input id="inp-filtro-mi" type="text" placeholder="Filtrar…" autocomplete="off">
+    </div>
+
+    <!-- Progress (só na view MI) -->
+    <div id="progress-area" class="hidden">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <div id="progress-text">Aguardando…</div>
+      <div id="progress-log"></div>
+    </div>
+
+    <!-- ── VIEW: Por MI ──────────────────────────────────────────────────── -->
+    <div id="view-mi" style="flex:1;overflow:auto;display:flex;flex-direction:column">
+      <div id="table-area" style="flex:1;overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>MI</th>
+              <th style="text-align:right">Score Total</th>
+              <th>Escala</th>
+              <th>Banco</th>
+              <th>Subfases (resumo)</th>
+              <th>Atualizado</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div id="empty-msg" style="padding:40px;text-align:center;color:var(--muted);font-size:12px">
+          Nenhum dado armazenado para esta LP.<br>Use o painel lateral para calcular e salvar.
+        </div>
+      </div>
+    </div>
+
+    <!-- ── VIEW: Ranking de UTs ─────────────────────────────────────────── -->
+    <div id="view-ranking" class="hidden" style="flex:1;overflow:auto;display:flex;flex-direction:column">
+
+      <!-- Stats bar -->
+      <div id="ranking-stats">
+        <div class="rk-stat"><div class="rs-val" id="rk-n">–</div><div class="rs-lbl">UTs</div></div>
+        <div class="rk-stat"><div class="rs-val" id="rk-total">–</div><div class="rs-lbl">Total pts</div></div>
+        <div class="rk-stat"><div class="rs-val" id="rk-media">–</div><div class="rs-lbl">Média</div></div>
+        <div class="rk-stat"><div class="rs-val" id="rk-mediana">–</div><div class="rs-lbl">Mediana</div></div>
+        <div class="rk-stat"><div class="rs-val" id="rk-dp">–</div><div class="rs-lbl">Desvio padrão</div></div>
+        <div class="rk-stat"><div class="rs-val" id="rk-max" style="color:var(--danger)">–</div><div class="rs-lbl">Máx</div></div>
+        <div class="rk-stat"><div class="rs-val" id="rk-min" style="color:var(--success)">–</div><div class="rs-lbl">Mín</div></div>
+      </div>
+
+      <!-- Tabela de ranking -->
+      <div style="flex:1;overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:36px">#</th>
+              <th>UT</th>
+              <th>MI</th>
+              <th>Subfase</th>
+              <th>Escala</th>
+              <th style="text-align:right">Pontos</th>
+              <th style="min-width:100px"></th>
+              <th>Calculado em</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-ranking"></tbody>
+        </table>
+        <div id="empty-ranking" class="hidden" style="padding:40px;text-align:center;color:var(--muted);font-size:12px">
+          Nenhum resultado de UT armazenado.<br>Use o botão "Salvar no GeoEsforço" na calculadora.
+        </div>
+      </div>
+    </div>
+
+    <!-- ── VIEW: Mapa ────────────────────────────────────────────────────── -->
+    <div id="view-mapa" class="hidden" style="flex:1;position:relative;overflow:hidden">
+      <div id="map-container" style="width:100%;height:100%"></div>
+
+      <!-- Painel de detalhe MI -->
+      <div id="mi-panel">
+        <div class="mip-header">
+          <div class="mip-info">
+            <div class="mip-nome" id="mip-nome">–</div>
+            <div class="mip-sub"  id="mip-sub">–</div>
+          </div>
+          <div class="mip-score" id="mip-score">–</div>
+          <button class="mip-close" id="mip-close">✕</button>
+        </div>
+        <div class="mip-body" id="mip-body">
+          <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Clique num MI para ver detalhes</div>
+        </div>
+      </div>
+
+      <div id="map-legenda">
+        <div class="leg-title">Score Total</div>
+        <div class="leg-bar"><div class="leg-gradient"></div></div>
+        <div class="leg-labels"><span id="leg-min">–</span><span id="leg-max">–</span></div>
+      </div>
+      <div id="map-loading" style="
+        position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+        background:rgba(13,27,42,.92);border:1px solid #1a3358;border-radius:8px;
+        padding:16px 24px;font-size:13px;color:#4fc3f7;z-index:2000;pointer-events:none
+      ">Carregando dados…</div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ── Estado ─────────────────────────────────────────────────────────────────
+let _lpAtiva    = 'mapeamento_topo';
+let _viewAtiva  = 'mi';
+let _linhasMI   = [];
+let _linhasRK   = [];
+let _calculando = false;
+
+// ── Utilitários ─────────────────────────────────────────────────────────────
+const fmtNum   = n => n == null ? '–' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+const fmtDate  = d => !d ? '–' : new Date(d).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+const fmtEscala = e => !e ? '–' : '1:' + Number(e).toLocaleString('pt-BR');
+
+const SF_COLORS = {
+  ext_ferrovia:                    '#ef5350',
+  ext_hidrografia_altimetria:      '#29b6f6',
+  ext_toponimos:                   '#ab47bc',
+  ext_vias_deslocamento:           '#ff7043',
+  ext_elemento_hidrografico:       '#26c6da',
+  ext_area_sem_dados:              '#78909c',
+  ext_limites:                     '#ffca28',
+  ext_intersecao_hidro_transporte: '#42a5f5',
+  ext_area_edificada:              '#ff8a65',
+  ext_edificacao:                  '#ec407a',
+  ext_vegetacao:                   '#66bb6a',
+  ext_planimetria:                 '#ffa726',
+  verificacao_final:               '#26a69a',
+};
+
+const SF_NOMES = {
+  ext_ferrovia: 'Ferrovia',
+  ext_hidrografia_altimetria: 'Hidro/Altimetria',
+  ext_toponimos: 'Topônimos',
+  ext_vias_deslocamento: 'Vias',
+  ext_elemento_hidrografico: 'Elem. Hídrico',
+  ext_area_sem_dados: 'Área s/ dados',
+  ext_limites: 'Limites',
+  ext_intersecao_hidro_transporte: 'Intersec. Hidro/Transp',
+  ext_area_edificada: 'Área edificada',
+  ext_edificacao: 'Edificação',
+  ext_vegetacao: 'Vegetação',
+  ext_planimetria: 'Planimetria',
+  verificacao_final: 'Verif. Final',
+};
+const sfNome = k => SF_NOMES[k] || k.replace(/^ext_/, '');
+
+// ── Status ──────────────────────────────────────────────────────────────────
+async function carregarStatus() {
+  try {
+    const data = await fetch('/api/pontuacao/status').then(r => r.json());
+    const topo = data['mapeamento_topo'];
+    const orto = data['mapeamento_orto'];
+    document.getElementById('stat-topo').textContent    = topo?.n ?? 0;
+    document.getElementById('stat-topo-dt').textContent = topo?.ultima ? fmtDate(topo.ultima) : 'sem dados';
+    document.getElementById('stat-orto').textContent    = orto?.n ?? 0;
+    document.getElementById('stat-orto-dt').textContent = orto?.ultima ? fmtDate(orto.ultima) : 'sem dados';
+  } catch {}
+}
+
+// ── View switcher ────────────────────────────────────────────────────────────
+document.querySelectorAll('.view-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _viewAtiva = btn.dataset.view;
+    document.getElementById('view-mi').classList.toggle('hidden',      _viewAtiva !== 'mi');
+    document.getElementById('view-ranking').classList.toggle('hidden', _viewAtiva !== 'ranking');
+    document.getElementById('view-mapa').classList.toggle('hidden',    _viewAtiva !== 'mapa');
+    document.getElementById('progress-area').classList.add('hidden');
+    if (_viewAtiva === 'ranking') carregarRanking(_lpAtiva);
+    else if (_viewAtiva === 'mapa') iniciarMapa(_lpAtiva);
+    else carregarResultados(_lpAtiva);
+  });
+});
+
+// ── LP tabs ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('.lp-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.lp-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _lpAtiva = btn.dataset.lp;
+    if      (_viewAtiva === 'ranking') carregarRanking(_lpAtiva);
+    else if (_viewAtiva === 'mapa')    carregarMapaGeoJSON(_lpAtiva);
+    else                               carregarResultados(_lpAtiva);
+  });
+});
+
+document.getElementById('inp-filtro-mi').addEventListener('input', e => {
+  if (_viewAtiva === 'ranking') renderRanking(e.target.value);
+  else renderTabelaMI(e.target.value);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VIEW: Por MI
+// ══════════════════════════════════════════════════════════════════════════════
+function renderTabelaMI(filtro = '') {
+  const tbody    = document.getElementById('tbody');
+  const emptyMsg = document.getElementById('empty-msg');
+  const f        = filtro.toLowerCase();
+  const visibles = _linhasMI.filter(r => !f || (r.mi || '').toLowerCase().includes(f));
+
+  if (!visibles.length) { tbody.innerHTML = ''; emptyMsg.classList.remove('hidden'); return; }
+  emptyMsg.classList.add('hidden');
+
+  tbody.innerHTML = visibles.map(r => {
+    const subfaseHtml = r.por_subfase
+      ? '<div class="subfase-grid">' +
+          Object.keys(SF_NOMES)
+            .filter(k => (r.por_subfase[k] ?? 0) > 0)
+            .slice(0, 6)
+            .map(k => `<div class="subfase-item">${sfNome(k)}: <span>${fmtNum(r.por_subfase[k])}</span></div>`).join('') +
+        '</div>'
+      : '–';
+    return `<tr>
+      <td class="mi-cell">${r.mi}</td>
+      <td class="score-cell">${fmtNum(r.score_total)}</td>
+      <td class="muted-cell">${fmtEscala(r.escala)}</td>
+      <td class="muted-cell">${r.banco_edgv || '–'}</td>
+      <td style="min-width:280px">${subfaseHtml}</td>
+      <td class="muted-cell">${fmtDate(r.atualizado_em)}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function carregarResultados(lpKey) {
+  try {
+    const rows = await fetch(`/api/pontuacao?lp_key=${lpKey}`).then(r => r.json());
+    _linhasMI = Array.isArray(rows) ? rows : [];
+    renderTabelaMI(document.getElementById('inp-filtro-mi').value);
+  } catch { _linhasMI = []; renderTabelaMI(); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VIEW: Ranking de UTs
+// ══════════════════════════════════════════════════════════════════════════════
+function calcStatsRK(rows) {
+  if (!rows.length) return null;
+  const scores = rows.map(r => Number(r.score_total) || 0).sort((a,b) => a - b);
+  const n      = scores.length;
+  const total  = scores.reduce((s, v) => s + v, 0);
+  const media  = total / n;
+  const mid    = Math.floor(n / 2);
+  const mediana = n % 2 === 0 ? (scores[mid-1] + scores[mid]) / 2 : scores[mid];
+  const dp     = Math.sqrt(scores.reduce((s, v) => s + (v - media) ** 2, 0) / n);
+  return { n, total, media, mediana, dp, max: scores[n-1], min: scores[0] };
+}
+
+function renderRanking(filtro = '') {
+  const tbody   = document.getElementById('tbody-ranking');
+  const emptyEl = document.getElementById('empty-ranking');
+  const f       = filtro.toLowerCase();
+  const rows    = _linhasRK.filter(r =>
+    !f || (r.nome || '').toLowerCase().includes(f) || (r.mi || '').toLowerCase().includes(f)
+  );
+
+  // Stats
+  const st = calcStatsRK(rows);
+  document.getElementById('rk-n').textContent      = st ? fmtNum(st.n) : '–';
+  document.getElementById('rk-total').textContent  = st ? fmtNum(st.total) : '–';
+  document.getElementById('rk-media').textContent  = st ? fmtNum(st.media) : '–';
+  document.getElementById('rk-mediana').textContent = st ? fmtNum(st.mediana) : '–';
+  document.getElementById('rk-dp').textContent     = st ? fmtNum(st.dp) : '–';
+  document.getElementById('rk-max').textContent    = st ? fmtNum(st.max) : '–';
+  document.getElementById('rk-min').textContent    = st ? fmtNum(st.min) : '–';
+
+  if (!rows.length) { tbody.innerHTML = ''; emptyEl.classList.remove('hidden'); return; }
+  emptyEl.classList.add('hidden');
+
+  const maxPts = Math.max(...rows.map(r => Number(r.score_total) || 0)) || 1;
+
+  tbody.innerHTML = rows.map((r, i) => {
+    const rank = i + 1;
+    const pct  = Math.round(((Number(r.score_total) || 0) / maxPts) * 100);
+    const badgeClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+    const sfKey = r.subfase_key || null;
+    const sfLabel = sfKey ? `<span class="sf-nome">${sfNome(sfKey)}</span>` : '<span class="sf-nome" style="background:rgba(102,187,106,.1);color:var(--success)">Todas</span>';
+
+    // Resumo das subfases (ordem canônica do JSON, apenas com pontos)
+    const subfaseHtml = r.por_subfase
+      ? '<div class="subfase-grid">' +
+          Object.keys(SF_NOMES)
+            .filter(k => (r.por_subfase[k] ?? 0) > 0)
+            .slice(0, 4)
+            .map(k => `<div class="subfase-item">${sfNome(k)}: <span>${fmtNum(r.por_subfase[k])}</span></div>`).join('') +
+        '</div>'
+      : '';
+
+    return `<tr>
+      <td><span class="rank-badge ${badgeClass}">${rank}</span></td>
+      <td>
+        <div style="font-weight:700;color:#fff">${r.nome || '–'}</div>
+        ${subfaseHtml}
+      </td>
+      <td class="muted-cell">${r.mi || '–'}</td>
+      <td>${sfLabel}</td>
+      <td class="muted-cell">${fmtEscala(r.escala)}</td>
+      <td class="score-cell">${fmtNum(r.score_total)}</td>
+      <td>
+        <div class="rank-bar-bg" style="width:100px">
+          <div class="rank-bar-fill" style="width:${pct}%"></div>
+        </div>
+      </td>
+      <td class="muted-cell">${fmtDate(r.calculado_em)}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function carregarRanking(lpKey) {
+  try {
+    const rows = await fetch(`/api/pontuacao/resultados?lp_key=${lpKey}`).then(r => r.json());
+    _linhasRK = Array.isArray(rows) ? rows : [];
+    renderRanking(document.getElementById('inp-filtro-mi').value);
+  } catch { _linhasRK = []; renderRanking(); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Calcular e Salvar (via pontuacao.html — por MI em lote)
+// ══════════════════════════════════════════════════════════════════════════════
+document.getElementById('btn-calcular').addEventListener('click', async () => {
+  if (_calculando) return;
+  _calculando = true;
+
+  const btn          = document.getElementById('btn-calcular');
+  const progressArea = document.getElementById('progress-area');
+  const fill         = document.getElementById('progress-fill');
+  const txt          = document.getElementById('progress-text');
+  const log          = document.getElementById('progress-log');
+
+  btn.disabled = true;
+  progressArea.classList.remove('hidden');
+  fill.style.width = '0%';
+  log.innerHTML    = '';
+  txt.textContent  = 'Iniciando…';
+  txt.style.color  = '';
+
+  const selLp  = document.getElementById('sel-lp').value;
+  const mi     = document.getElementById('inp-mi').value.trim() || null;
+  const escala = parseInt(document.getElementById('sel-escala').value);
+  const lpKey  = selLp === 'ambas' ? null : selLp;
+
+  try {
+    const res = await fetch('/api/pontuacao/calcular', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mi, lp_key: lpKey, escala }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ erro: res.statusText }));
+      txt.textContent = `Erro: ${err.erro}`; txt.style.color = 'var(--danger)';
+      _calculando = false; btn.disabled = false; return;
+    }
+
+    const reader = res.body.getReader(), decoder = new TextDecoder();
+    let buffer = '', total = 0, feitos = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const linhas = buffer.split('\n'); buffer = linhas.pop();
+      for (const linha of linhas) {
+        if (!linha.trim()) continue;
+        try {
+          const obj = JSON.parse(linha);
+          if (obj.tipo === 'inicio') {
+            total = obj.total_mis * (obj.lps?.length || 1);
+            txt.textContent = `Calculando 0 / ${total}…`;
+          } else if (obj.tipo === 'progresso') {
+            feitos++;
+            const pct = total > 0 ? Math.round((feitos / total) * 100) : 0;
+            fill.style.width = pct + '%';
+            txt.textContent  = `Calculando ${feitos} / ${total} — ${pct}%`;
+            const el = document.createElement('div');
+            el.style.color = obj.ok ? 'var(--success)' : 'var(--danger)';
+            el.textContent = obj.ok
+              ? `✓ ${obj.mi} [${obj.lp_key?.replace('mapeamento_','')}] → ${fmtNum(obj.score_total)} pts`
+              : `✗ ${obj.mi} [${obj.lp_key?.replace('mapeamento_','')}] — ${obj.erro}`;
+            log.appendChild(el); log.scrollTop = log.scrollHeight;
+          } else if (obj.tipo === 'fim') {
+            fill.style.width = '100%';
+            txt.textContent  = `Concluído: ${obj.ok} OK, ${obj.erros} erro(s)`;
+            txt.style.color  = obj.erros > 0 ? 'var(--warn)' : 'var(--success)';
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (e) { txt.textContent = `Erro: ${e.message}`; txt.style.color = 'var(--danger)'; }
+
+  _calculando = false;
+  btn.disabled = false;
+  await carregarStatus();
+  if (_viewAtiva === 'ranking') await carregarRanking(_lpAtiva);
+  else await carregarResultados(_lpAtiva);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Painel de detalhe MI
+// ══════════════════════════════════════════════════════════════════════════════
+let _painelMiAtivo = null;
+
+document.getElementById('mip-close').addEventListener('click', () => {
+  document.getElementById('mi-panel').classList.remove('open');
+  _painelMiAtivo = null;
+});
+
+async function abrirMiPanel(mi, lpKey, featProps) {
+  if (_painelMiAtivo === mi) {
+    document.getElementById('mi-panel').classList.remove('open');
+    _painelMiAtivo = null;
+    return;
+  }
+  _painelMiAtivo = mi;
+
+  const panel = document.getElementById('mi-panel');
+  panel.classList.add('open');
+  document.getElementById('mip-nome').textContent  = mi;
+  document.getElementById('mip-sub').textContent   = '…';
+  document.getElementById('mip-score').textContent = fmtNum(featProps.score_total) + ' pts';
+  document.getElementById('mip-body').innerHTML    = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Carregando…</div>';
+
+  let dados;
+  try {
+    const rows = await fetch(`/api/pontuacao?lp_key=${lpKey}&mi=${encodeURIComponent(mi)}`).then(r => r.json());
+    dados = Array.isArray(rows) ? rows[0] : rows;
+  } catch (e) {
+    document.getElementById('mip-body').innerHTML = `<div style="padding:16px;color:var(--danger);font-size:11px">Erro: ${e.message}</div>`;
+    return;
+  }
+  if (!dados) {
+    document.getElementById('mip-body').innerHTML = `<div style="padding:16px;color:var(--muted);font-size:11px">Dados não encontrados.</div>`;
+    return;
+  }
+
+  // Aborted (usuário clicou em outro MI)
+  if (_painelMiAtivo !== mi) return;
+
+  const lpLabel = lpKey === 'mapeamento_topo' ? 'Topo 1.4' : lpKey === 'mapeamento_orto' ? 'Carta Orto' : lpKey;
+  document.getElementById('mip-sub').textContent = lpLabel + (dados.banco_edgv ? ' · ' + dados.banco_edgv : '');
+  document.getElementById('mip-score').textContent = fmtNum(dados.score_total) + ' pts';
+
+  // Subfase entries — ordena pela ordem canônica do JSON (SF_NOMES), inclui zeros
+  const SF_ORDER = Object.keys(SF_NOMES);
+  const _porSf   = dados.por_subfase || {};
+  const sfEntries = [
+    ...SF_ORDER.filter(k => k in _porSf).map(k => [k, _porSf[k] ?? 0]),
+    ...Object.keys(_porSf).filter(k => !SF_ORDER.includes(k)).map(k => [k, _porSf[k] ?? 0]),
+  ];
+  const sfComDados = sfEntries.filter(([, v]) => v > 0).length;
+  const barTotal   = sfEntries.reduce((s, [, v]) => s + v, 0) || 1;
+
+  // Stat chips
+  const estatChips = `<div class="stat-chips">
+    <div class="stat-chip"><span class="stat-n">${sfComDados}/${sfEntries.length}</span><span class="stat-lbl">subfases</span></div>
+    ${dados.escala ? `<div class="stat-chip"><span class="stat-n">1:${Math.round(dados.escala/1000)}k</span><span class="stat-lbl">escala</span></div>` : ''}
+    ${dados.mult_escala != null ? `<div class="stat-chip"><span class="stat-n">×${Number(dados.mult_escala).toFixed(2)}</span><span class="stat-lbl">mult escala</span></div>` : ''}
+  </div>`;
+
+  // SF bars
+  const sfBars = sfEntries.length
+    ? `<div class="sf-bars-section">
+        <div class="sf-bars-title">Pontuação por subfase</div>
+        ${sfEntries.map(([key, pts]) => {
+          const pct   = (pts / barTotal) * 100;
+          const color  = SF_COLORS[key] || '#4fc3f7';
+          const nome   = sfNome(key);
+          const zero   = pts === 0;
+          const dotStyle = zero ? 'opacity:.3' : '';
+          const nameStyle = zero ? 'opacity:.4' : '';
+          const ptsStyle  = zero ? 'opacity:.35' : '';
+          return `<div class="sf-bar-row" style="--sf-c:${color}${zero ? ';opacity:.7' : ''}">
+            <div class="sf-bar-label">
+              <span class="sf-bar-dot" style="${dotStyle}"></span>
+              <span class="sf-bar-name" title="${nome}" style="${nameStyle}">${nome}</span>
+              <span class="sf-bar-pts" style="${ptsStyle}">${zero ? '–' : Number(pts).toLocaleString('pt-BR', {maximumFractionDigits:1})}</span>
+            </div>
+            <div class="sf-bar-track">
+              <div class="sf-bar-fill" data-w="${zero ? 0 : Math.max(pct,1).toFixed(2)}" style="width:0%;${zero ? 'opacity:.2' : ''}"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`
+    : '<div style="color:var(--muted);font-size:11px;padding:4px 0">Sem dados de subfase</div>';
+
+  // Detalhamento por camada
+  const camRows = (dados.por_camada || [])
+    .sort((a, b) => b.pts - a.pts)
+    .map(d => {
+      const join    = d.camada.includes('__x__') ? ' <span class="tag-join">join</span>' : '';
+      const camNome = d.camada.replace(/__x__.*/, '');
+      const ptsStr  = d.pts.toLocaleString('pt-BR', {maximumFractionDigits:1});
+      let valorCell;
+      if (d.metrica === 'dens_ent') {
+        valorCell = `${d.n_ent ?? '?'} <span class="cam-metrica">ent</span> <span class="cam-dens">${d.valor}/km</span> <span class="cam-fator">×${d.fator}</span>`;
+      } else if (d.metrica === 'dens_conf') {
+        valorCell = `${d.n_conf ?? '?'} <span class="cam-metrica">conf</span> <span class="cam-dens">${d.valor}/km</span> <span class="cam-fator">×${d.fator}</span>`;
+      } else {
+        const exp = d.expoente !== 1 ? `<sup>${d.expoente}</sup>` : '';
+        valorCell = `${d.valor} <span class="cam-metrica">${d.metrica}${exp}</span>`;
+      }
+      return `<tr>
+        <td><span class="camada-nome">${camNome}</span>${join}</td>
+        <td class="cam-valor">${valorCell}</td>
+        <td class="cam-pts">${ptsStr}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="3" style="color:var(--muted);font-size:10px;padding:4px 6px">Sem dados de camada</td></tr>';
+
+  const camDetalhes = `<details class="detail-block">
+    <summary>▸ Detalhamento por camada (${(dados.por_camada||[]).length})</summary>
+    <table class="cam-table" style="margin-top:8px">
+      <thead><tr><th>Camada</th><th>Valor</th><th class="cam-pts">Pts</th></tr></thead>
+      <tbody>${camRows}</tbody>
+    </table>
+  </details>`;
+
+  const atualizado = dados.atualizado_em
+    ? `<div class="mip-atualizado">Atualizado em ${fmtDate(dados.atualizado_em)}</div>` : '';
+
+  document.getElementById('mip-body').innerHTML = estatChips + sfBars + camDetalhes + atualizado;
+
+  // Animar barras
+  requestAnimationFrame(() => {
+    document.querySelectorAll('#mip-body .sf-bar-fill[data-w]').forEach(el => {
+      el.style.width = el.getAttribute('data-w') + '%';
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VIEW: Mapa
+// ══════════════════════════════════════════════════════════════════════════════
+let _map        = null;
+let _geojsonLayer = null;
+let _mapaLpAtiva = null;
+
+function scoreParaCor(score, minS, maxS) {
+  if (minS === maxS) return '#4fc3f7';
+  const t = Math.max(0, Math.min(1, (score - minS) / (maxS - minS)));
+  // verde → amarelo → vermelho
+  let r, g, b;
+  if (t < 0.5) {
+    const u = t * 2;
+    r = Math.round(67  + (255 - 67)  * u);
+    g = Math.round(160 + (179 - 160) * u);
+    b = Math.round(71  + (0   - 71)  * u);
+  } else {
+    const u = (t - 0.5) * 2;
+    r = Math.round(255 + (229 - 255) * u);
+    g = Math.round(179 + (57  - 179) * u);
+    b = Math.round(0   + (53  - 0)   * u);
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+function iniciarMapa(lpKey) {
+  // Cria mapa só na primeira vez
+  if (!_map) {
+    _map = L.map('map-container', { center: [-14.2, -51.9], zoom: 5, zoomControl: true });
+
+    const osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    });
+    const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      maxZoom: 21, attribution: '&copy; Google'
+    });
+
+    osmLayer.addTo(_map);
+    L.control.layers({ 'OSM': osmLayer, 'Google Híbrido': googleHybrid }, {}, { position: 'topright' }).addTo(_map);
+  }
+
+  // Invalida tamanho após exibição (a div estava hidden)
+  setTimeout(() => _map.invalidateSize(), 50);
+
+  // Só recarrega se mudou a LP
+  if (_mapaLpAtiva === lpKey && _geojsonLayer) return;
+  _mapaLpAtiva = lpKey;
+
+  carregarMapaGeoJSON(lpKey);
+}
+
+async function carregarMapaGeoJSON(lpKey) {
+  const loading = document.getElementById('map-loading');
+  loading.style.display = 'block';
+  loading.textContent   = 'Carregando dados…';
+
+  if (_geojsonLayer) { _map.removeLayer(_geojsonLayer); _geojsonLayer = null; }
+
+  try {
+    const fc = await fetch(`/api/pontuacao/mapa?lp_key=${lpKey}`).then(r => r.json());
+
+    if (!fc.features || !fc.features.length) {
+      loading.textContent = 'Nenhum MI armazenado para esta LP.';
+      return;
+    }
+
+    const scores = fc.features.map(f => Number(f.properties.score_total) || 0);
+    const minS   = Math.min(...scores);
+    const maxS   = Math.max(...scores);
+
+    document.getElementById('leg-min').textContent = fmtNum(minS);
+    document.getElementById('leg-max').textContent = fmtNum(maxS);
+
+    _geojsonLayer = L.geoJSON(fc, {
+      style(feature) {
+        const s   = Number(feature.properties.score_total) || 0;
+        const cor = scoreParaCor(s, minS, maxS);
+        return { color: '#0a1628', weight: 0.8, fillColor: cor, fillOpacity: 0.75 };
+      },
+      onEachFeature(feature, layer) {
+        const p = feature.properties;
+        layer.on('click', function() {
+          abrirMiPanel(p.mi, lpKey, p);
+        });
+        layer.on('mouseover', function() {
+          this.setStyle({ weight: 2, color: '#4fc3f7', fillOpacity: 0.9 });
+        });
+        layer.on('mouseout', function() {
+          _geojsonLayer.resetStyle(this);
+        });
+      }
+    }).addTo(_map);
+
+    // Zoom para os dados
+    try { _map.fitBounds(_geojsonLayer.getBounds(), { padding: [20, 20] }); } catch (_) {}
+    loading.style.display = 'none';
+
+  } catch (e) {
+    loading.textContent = `Erro: ${e.message}`;
+  }
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+carregarStatus();
+carregarResultados(_lpAtiva);
+</script>
+</body>
+</html>
